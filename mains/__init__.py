@@ -1,0 +1,1 @@
+from .vhred_train import VHREDTrainer
