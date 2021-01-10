@@ -3,6 +3,7 @@ from configs import args
 from .encoder import Encoder
 from .decoder import Decoder
 from .model_utils import reparamter_trick, kl_weights_fn, kl_loss_fn
+import numpy as np
 
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -55,25 +56,26 @@ class VHRED(BaseModel):
     def build_encoder_graph(self):
         with tf.compat.v1.variable_scope('encoder', reuse=tf.compat.v1.AUTO_REUSE):
             self.enc_state_list = []  # (utterance_num, batch_size, state_dim)
-            for i in range(args['num_pre_utterance']):
-                current_utterance_inputs = self.encoder_inputs[:, i, :]  # (batch_size, max_len)
-                outputs, states = self.encoder_RNN(current_utterance_inputs)
-                self.enc_state_list.append(states[-1])
+            for i in range(args['num_pre_utterance']):  # 3 utterances said before
+                current_utterance_inputs = self.encoder_inputs[:, i, :]  # (batch_size, max_len), the i'th speaking turn of all dialogs in the batch
+                outputs, states = self.encoder_RNN(current_utterance_inputs) # all outputs and states for the i'th utterances, each state here captures corresponding sequence said
+                self.enc_state_list.append(states[-1])  # states[-1] since encoderRNN is a 2-layer RNN network, just need the later layer
 
     def build_encoder_current_step_graph(self):
         with tf.compat.v1.variable_scope('encoder/current_step', reuse=tf.compat.v1.AUTO_REUSE):
-            outputs, states = self.encoder_RNN(self.decoder_inputs)
-            self.current_step_state = states  # (num_layer, (batch_size, state_dim))
+            outputs, states = self.encoder_RNN(self.decoder_inputs) # The fourth 4th utterance as response to the third
+            self.current_step_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to current_step_states
 
     def build_context_graph(self):
         with tf.compat.v1.variable_scope('context', reuse=tf.compat.v1.AUTO_REUSE):
             self.enc_state_list = tf.transpose(a=self.enc_state_list,
                                                perm=[1, 0, 2])  # (batch_size, utterance_num, state_dim)
             outputs, states = self.context_RNN(self.enc_state_list)
-            self.context_state = states  # (num_layer, (batch_size, state_dim))
+            self.context_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to context_state
 
     def build_prior_graph(self):
         with tf.compat.v1.variable_scope('prior', reuse=tf.compat.v1.AUTO_REUSE):
+            # 2 layers neural network: prior_dense_1 and prior_dense_2
             self.prior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                            activation=tf.nn.tanh,
                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
@@ -95,7 +97,7 @@ class VHRED(BaseModel):
                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
                                                                0.0, 0.01),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
-                                                           name='prior_log_var')
+                                                           name='prior_log_var', activation='softplus')
             self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 prior_dense_1_out = self.prior_dense_1(self.context_state[i])
@@ -107,8 +109,9 @@ class VHRED(BaseModel):
 
     def build_posterior_graph(self):
         with tf.compat.v1.variable_scope('posterior', reuse=tf.compat.v1.AUTO_REUSE):
-            # (num_layer,(batch_size, 2*state_dim))
+            # (num_layer,(batch_size, 2*state_dim)), num_layer as first dim since each context_state and current_step_state are from 2-layer rnns
             self.context_with_current_step = tf.concat([self.context_state, self.current_step_state], -1)
+            # 2 layers neural network
             self.posterior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                                activation=tf.nn.tanh,
                                                                kernel_initializer=tf.compat.v1.truncated_normal_initializer(
@@ -124,7 +127,7 @@ class VHRED(BaseModel):
                                                                kernel_initializer=tf.compat.v1.truncated_normal_initializer(
                                                                    0.0, 0.01),
                                                                bias_initializer=tf.compat.v1.zeros_initializer,
-                                                               name='posterior_log_var')
+                                                               name='posterior_log_var', activation='softplus')
             self.posterior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 posterior_dense_1_out = self.posterior_dense_1(
@@ -156,14 +159,14 @@ class VHRED(BaseModel):
                                   log_var_2=self.prior_log_var_value)
         self.loss = self.nll_loss + self.kl_weights * self.kl_loss
         optimizer = tf.compat.v1.train.AdamOptimizer(self.lr)
-        tvars = tf.compat.v1.trainable_variables()  # trainable_variables
-        grads = tf.gradients(ys=self.loss, xs=tvars)
+        self.tvars = tf.compat.v1.trainable_variables()  # trainable_variables
+        grads = tf.gradients(ys=self.loss, xs=self.tvars)
         clip_grads, _ = tf.clip_by_global_norm(grads, args['clip_norm'])
-        self.train_op = optimizer.apply_gradients(zip(clip_grads, tvars), global_step=self.global_step)
+        self.train_op = optimizer.apply_gradients(zip(clip_grads, self.tvars), global_step=self.global_step)
 
     def build_infer_decoder_graph(self):
         with tf.compat.v1.variable_scope('infer/decoder', reuse=tf.compat.v1.AUTO_REUSE):
-            self.context_with_latent_infer = tf.concat([self.context_state, self.prior_z_tuple], -1)
+            self.context_with_latent_infer = tf.concat([self.context_state, self.prior_z_tuple], -1, name='context_with_latent_infer')
             self.infer_decoder_ids = self.decoder_RNN(context_with_latent=self.context_with_latent_infer,
                                                       is_training=False)
             self.infer_decoder_logits = tf.one_hot(self.infer_decoder_ids, depth=self.dataLoader.vocab_size)
@@ -177,7 +180,7 @@ class VHRED(BaseModel):
     def encoder_state_session(self, sess, enc_inp):
         result = sess.run(self.enc_state_list, feed_dict={self.encoder_inputs: enc_inp})
         # result = sess.run(self.current_utterance_inputs, feed_dict={self.encoder_inputs:enc_inp})
-        return result
+        return result, state
 
     def encoder_current_step_session(self, sess, dec_inp):
         result = sess.run(self.current_step_state, feed_dict={self.decoder_inputs: dec_inp})
@@ -199,11 +202,15 @@ class VHRED(BaseModel):
     def train_decoder_session(self, sess, enc_inp, dec_inp):
         train_logits, train_sample_id = sess.run([self.train_logits, self.train_sample_id],
                                                  feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        print("\n\n\n*******************************\tOutput dense logits: ", train_logits, "\n************************************\n\n\n")
+        print("\n\n\n*******************************\tOutput dense ids: ", train_sample_id, "\n************************************\n\n\n")
         return train_logits, train_sample_id
 
     def infer_decoder_session(self, sess, enc_inp):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
                                      feed_dict={self.encoder_inputs: enc_inp})
+        print("\n\n\n*******************************latent plus context output:\n", sess.run(self.context_with_latent_infer, feed_dict={self.encoder_inputs: enc_inp}))
+        # print("Output dense: ", sess.run(self.cell_outputs(input_shape=(args['batch_size'], args['rnn_size'])).output, feed_dict={self.encoder_inputs: enc_inp}), "\n************************************\n\n\n")
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp, dec_tar):

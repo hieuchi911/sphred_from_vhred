@@ -12,10 +12,10 @@ args['keep_prob']=0.8
 args['num_layer']=2
 args['test_ratio']=0.3
 args['num_pre_utterance']=3
-args['learning_rate']=0.0002
+args['learning_rate']=0.0001
 
-args['batch_size']=128
-args['n_epochs']=10
+args['batch_size']=40
+args['n_epochs']=20
 args['display_step']=10
 
 args['vocab_size']=20000
@@ -33,7 +33,7 @@ args['vhred_ckpt_dir']='model/ckpt/vhred'
 args['vae_display_step']=100
 args['latent_size']=64
 args['anneal_max']=1.0
-args['anneal_bias']=6000
+args['anneal_bias']=144
 
 args['discriminator_dropout_rate']=0.2
 args['n_filters']=128

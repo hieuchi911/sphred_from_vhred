@@ -40,9 +40,10 @@ def reparamter_trick(z_mean, z_logvar):
 
 def kl_weights_fn(global_step):
 	return args['anneal_max'] * tf.sigmoid((10 / args['anneal_bias']) * (
-			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias'] / 2)))
+			tf.cast(global_step, dtype=tf.float32) - tf.constant(2 * args['anneal_bias']/ 2)))
 
 def kl_loss_fn(mean_1, log_var_1, mean_2, log_var_2):
-	return 0.5 * tf.reduce_sum(input_tensor=tf.exp(log_var_1) * tf.exp(log_var_2) +
-	                           (mean_2 - mean_1) * tf.exp(log_var_2) * (mean_2 - mean_1) - 1 +
-	                           log_var_2 - log_var_1) / tf.cast(args['batch_size'], dtype=tf.float32)
+	return 0.5 * tf.reduce_sum(input_tensor=log_var_1 / log_var_2 +
+	                           (mean_2 - mean_1) / log_var_2 * (mean_2 - mean_1) - 1 +
+	                           tf.math.log(log_var_2) - tf.math.log(log_var_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
+

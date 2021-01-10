@@ -17,7 +17,7 @@ class Decoder(BaseModel):
                                                       args['rnn_size'],
                                                       args['keep_prob'],
                                                       args['num_layer'])
-            # Hidden state that gets feed to the decoder cell
+            # Hidden state that gets feed to the decoder cell, this is the hidden state of the context concatenated with the latent
             self.state_dense = tf.compat.v1.layers.Dense(units=args['rnn_size'],    # shape of output space
                                                          activation=tf.nn.relu,     # activation function
                                                          kernel_initializer=tf.compat.v1.truncated_normal_initializer(
@@ -31,6 +31,7 @@ class Decoder(BaseModel):
                                                               0.0, 0.01),
                                                           bias_initializer=tf.compat.v1.zeros_initializer,
                                                           name='decoder/output_dense')
+            # print("\n\n\n******************************\nINPUT SHAPE: ", self.output_dense, "******************************\n\n\n")
 
     def __call__(self, context_with_latent, is_training=False, decoder_inputs=None):
         # diamention of context_with_latent:
@@ -63,8 +64,13 @@ class Decoder(BaseModel):
                     decoder_init_kwargs={
                         'initial_state': init_state_tuple
                     })
-                logits = train_output.rnn_output  # (batch_size, dec_max_lentgh, vocab_size) 概率分布
-                sample_id = train_output.sample_id  # (batch_size, dec_max_length) 解码结果
+                # train_output is a BasicDecoderOutput, deducted from the decoder, since decoder.step is used in dynamic_decode,
+                # then output of decoder.step is processed and returned by dynamic_decode.
+                # Therefore, train_output has rnn_output and sample_id.
+                # rnn_output will be the output of the output_layer defined in BasicDecoder train_decoder (if output_layer not defined then rnn_output is the output of the rnn cell)
+                logits = train_output.rnn_output  # (batch_size, dec_max_lentgh, vocab_size) 概率分布, dec_max_length is the length of the sentence
+                # sample_id will be the ids of the max values in rnn_outputs outputs: sample_ids = tf.cast(tf.argmax(outputs, axis=-1), tf.int32)
+                sample_id = train_output.sample_id  # (batch_size, dec_max_length) 解码结果: an amount of dec_max_length of ids of highest proba vocab word
                 return logits, sample_id
             else:  # inferring
                 infer_decoder = tfa.seq2seq.BeamSearchDecoder(
@@ -81,7 +87,9 @@ class Decoder(BaseModel):
                         'end_token': args['EOS_ID'],
                         'initial_state': tfa.seq2seq.tile_batch(init_state_tuple, args['beam_width'])
                     })
+                # print("**********************************\n******************************\n********************************\n", "\n**********************************\n******************************\n********************************\n")
                 infer_predicted_ids = infer_output.predicted_ids[:, :, 0]  # select the first sentence
+                print("----------------------------n--------------------HMM WHAT WILL THIS RETURN?", infer_predicted_ids)
 
                 # The return is a list consisting of only one element whose diamention is (batch_size, max_len)
                 return infer_predicted_ids
