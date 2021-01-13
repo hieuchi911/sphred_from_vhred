@@ -63,7 +63,10 @@ class VHREDTrainer(object):
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.train_generator(), desc="training"):
                 # print("target: ", dec_tar, "\ndec_input", dec_inp)
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
+<<<<<<< HEAD
                 latent_posterior = model.posterior_z_session(sess, enc_inp, dec_inp)
+=======
+>>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
                 
               
                 count += 1

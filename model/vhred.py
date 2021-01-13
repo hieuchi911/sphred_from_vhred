@@ -181,7 +181,7 @@ class VHRED(BaseModel):
     def encoder_state_session(self, sess, enc_inp):
         result = sess.run(self.enc_state_list, feed_dict={self.encoder_inputs: enc_inp})
         # result = sess.run(self.current_utterance_inputs, feed_dict={self.encoder_inputs:enc_inp})
-        return result
+        return result, state
 
     def encoder_current_step_session(self, sess, dec_inp):
         result = sess.run(self.current_step_state, feed_dict={self.decoder_inputs: dec_inp})
@@ -203,6 +203,7 @@ class VHRED(BaseModel):
     def train_decoder_session(self, sess, enc_inp, dec_inp):
         train_logits, train_sample_id = sess.run([self.train_logits, self.train_sample_id],
                                                  feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+<<<<<<< HEAD
         print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
         array_of = {}
         array_gt_3 = {}
@@ -217,12 +218,20 @@ class VHRED(BaseModel):
         print("array_of: ", array_of, "\nAnd length of array_of is: ", len(array_of))
         print("array_gt_3: ", array_gt_3, "\nAnd length of array_gt_3 is: ", len(array_gt_3))
         print("\n\n\n*******************************\tOutput dense ids: ", train_sample_id, "\n*******************************\n\n\n")
+=======
+        print("\n\n\n*******************************\tOutput dense logits: ", train_logits, "\n************************************\n\n\n")
+        print("\n\n\n*******************************\tOutput dense ids: ", train_sample_id, "\n************************************\n\n\n")
+>>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
         return train_logits, train_sample_id
 
     def infer_decoder_session(self, sess, enc_inp):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
                                      feed_dict={self.encoder_inputs: enc_inp})
         print("\n\n\n*******************************latent plus context output:\n", sess.run(self.context_with_latent_infer, feed_dict={self.encoder_inputs: enc_inp}))
+<<<<<<< HEAD
+=======
+        # print("Output dense: ", sess.run(self.cell_outputs(input_shape=(args['batch_size'], args['rnn_size'])).output, feed_dict={self.encoder_inputs: enc_inp}), "\n************************************\n\n\n")
+>>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp, dec_tar):

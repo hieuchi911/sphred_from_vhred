@@ -12,9 +12,15 @@ args['keep_prob']=0.8
 args['num_layer']=2
 args['test_ratio']=0.3
 args['num_pre_utterance']=3
+<<<<<<< HEAD
 args['learning_rate']=0.001
 
 args['batch_size']=512
+=======
+args['learning_rate']=0.0001
+
+args['batch_size']=40
+>>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
 args['n_epochs']=20
 args['display_step']=10
 
