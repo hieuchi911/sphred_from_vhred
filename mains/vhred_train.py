@@ -28,6 +28,7 @@ class VHREDTrainer(object):
     def sample_test(self, model, dataLoader, sess):
         for enc_inp, dec_inp, dec_tar in dataLoader.test_generator():
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp)
+            logits = model.train_decoder_session(sess, enc_inp, dec_inp)
             sample_previous_utterance_id = enc_inp[:3]
             sample_infer_response_id = infer_decoder_ids[-1][:3]
             sample_true_response_id = dec_tar[:3]
@@ -60,8 +61,11 @@ class VHREDTrainer(object):
             count = 0
 
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.train_generator(), desc="training"):
+                # print("target: ", dec_tar, "\ndec_input", dec_inp)
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
-
+                latent_posterior = model.posterior_z_session(sess, enc_inp, dec_inp)
+                
+              
                 count += 1
                 global_step = train_out['global_step']
                 loss += train_out['loss']
@@ -80,6 +84,12 @@ class VHREDTrainer(object):
                                                                                                        current_nll_loss,
                                                                                                        current_kl_loss,
                                                                                                        current_perplexity))
+                    # length_of_enc_state_list, states = model.encoder_state_session(sess, enc_inp)
+                    # print("states: ", np.shape(states))
+                    # print("length_of_enc_state_list: ", np.shape(length_of_enc_state_list))
+            # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
+            # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
+
 
             print()
             loss = loss / count

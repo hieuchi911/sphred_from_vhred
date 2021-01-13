@@ -4,6 +4,7 @@ import tensorflow as tf
 from configs import args
 import random
 import numpy as np
+import spacy
 
 # 讲语料中的一些词转为'<unk>'
 def word_dropout(x):
@@ -11,6 +12,19 @@ def word_dropout(x):
     fn = np.vectorize(lambda x, k: args['UNK_ID'] if (
         k and (x not in range(4))) else x)
     return fn(x, is_dropped)
+
+def word_embeddings():
+    nlp = spacy.load('en')
+    data = open("data/vocab_1.txt", "r", encoding="utf-8")
+    embedding_matrix = []
+    for i in range(4):
+      embedding_matrix.append(np.zeros(96))
+    for word in data:
+      vector = nlp(word)
+      embedding_matrix.append(vector.vector)
+    output_rt = np.array(embedding_matrix)
+    print("Shape of output_rt", np.shape(output_rt))
+    return output_rt
 
 def read_data(filename):
     ret = []
@@ -51,9 +65,12 @@ def read_vocab(filename):
 
     word_to_id = {}
     id_to_word = {}
-    for i, w in enumerate(word_list):
-        word_to_id[w] = i + 4
-        id_to_word[i + 4] = w
+    i = 0
+    for w in word_list:
+        if w not in word_to_id.keys():
+          word_to_id[w] = i + 4
+          id_to_word[i + 4] = w
+        i += 1
 
     word_to_id["<pad>"] = 0
     word_to_id["<sos>"] = 1

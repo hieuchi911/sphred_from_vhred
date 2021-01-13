@@ -5,16 +5,16 @@ from configs import args
 def create_multi_rnn_cell(rnn_type, hidden_dim, keep_prob, num_layer):
 	def single_rnn_cell():
 		if rnn_type.lower() == "lstm":
-			cell = tf.compat.v1.nn.rnn_cell.LSTMCell(hidden_dim)
+			cell = tf.keras.layers.LSTMCell(hidden_dim, dropout=keep_prob)
 		elif rnn_type.lower() == "gru":
-			cell = tf.compat.v1.nn.rnn_cell.GRUCell(hidden_dim)
+			cell = tf.keras.layers.GRUCell(hidden_dim, dropout=keep_prob)
 		else:
 			raise ValueError(" # Unsupported rnn_type: %s." % rnn_type)
 		# Apply dropout mechanism to the inputs and outputs by multiplying with the corresponding probabilities
-		cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=1.0, output_keep_prob=keep_prob)
+		# cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=1.0, output_keep_prob=keep_prob)
 		return cell
 	# accepted and returned states are n-tuples where n=len(cells)
-	cell = tf.compat.v1.nn.rnn_cell.MultiRNNCell([single_rnn_cell() for _ in range(num_layer)], state_is_tuple=True)
+	cell = tf.keras.layers.StackedRNNCells([single_rnn_cell() for _ in range(num_layer)])
 	# cell = tf.contrib.rnn.MultiRNNCell([single_rnn_cell() for _ in range(num_layer)], state_is_tuple=False)
 	return cell
 
@@ -40,9 +40,10 @@ def reparamter_trick(z_mean, z_logvar):
 
 def kl_weights_fn(global_step):
 	return args['anneal_max'] * tf.sigmoid((10 / args['anneal_bias']) * (
-			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias'] / 2)))
+			tf.cast(global_step, dtype=tf.float32) - tf.constant(2 * args['anneal_bias']/ 2)))
 
 def kl_loss_fn(mean_1, log_var_1, mean_2, log_var_2):
-	return 0.5 * tf.reduce_sum(input_tensor=tf.exp(log_var_1) * tf.exp(log_var_2) +
-	                           (mean_2 - mean_1) * tf.exp(log_var_2) * (mean_2 - mean_1) - 1 +
-	                           log_var_2 - log_var_1) / tf.cast(args['batch_size'], dtype=tf.float32)
+	return 0.5 * tf.reduce_sum(input_tensor=log_var_1 / log_var_2 +
+	                           (mean_2 - mean_1) / log_var_2 * (mean_2 - mean_1) - 1 +
+	                           tf.math.log(log_var_2) - tf.math.log(log_var_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
+

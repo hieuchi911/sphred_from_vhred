@@ -1,4 +1,4 @@
-from data.data_process import read_data, read_vocab, tokenize_data, split_data, form_input_data
+from data.data_process import read_data, read_vocab, tokenize_data, split_data, form_input_data, word_embeddings
 from configs import args
 import numpy as np
 
@@ -7,11 +7,13 @@ class VHREDDataLoader(object):
         self.sess = sess
 
         #load data
-        self.raw_data = read_data(filename='samples.txt')
-        self.word_to_id, self.id_to_word = read_vocab(filename='vocab.txt')
+        self.raw_data = read_data(filename='samples_1.txt')
+        self.word_to_id, self.id_to_word = read_vocab(filename='vocab_1.txt')
         self.vocab_size = len(self.word_to_id)
+        print("\n\n\n=====\nVocab size: ", self.vocab_size, "=====\n\n\n")
         # 单词转为数字
         self.data = tokenize_data(self.raw_data, self.word_to_id)
+        self.embedding_matrix = word_embeddings()
 
         # 划分数据集
         X_train, y_train, X_test, y_test = split_data(self.data)
