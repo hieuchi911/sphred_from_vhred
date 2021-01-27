@@ -11,7 +11,9 @@ class Decoder(BaseModel):
         super().__init__('decoder')
         self.vocab_size = vocab_size
         with tf.compat.v1.variable_scope(self._scope, reuse=tf.compat.v1.AUTO_REUSE):
+
             self.embedding = tf.constant(word_embeddings, dtype=tf.float32)
+            
             # self.embedding = tf.compat.v1.get_variable('lookup_table', [vocab_size, args['embed_dims']])
             self.decoder_cell = create_multi_rnn_cell(args['rnn_type'],
                                                       args['rnn_size'],
@@ -30,12 +32,7 @@ class Decoder(BaseModel):
                                                           kernel_initializer=tf.compat.v1.truncated_normal_initializer(
                                                               0.0, 0.01),
                                                           bias_initializer=tf.compat.v1.zeros_initializer,
-<<<<<<< HEAD
-                                                          name='decoder/output_dense', activation='softmax')
-=======
                                                           name='decoder/output_dense')
-            # print("\n\n\n******************************\nINPUT SHAPE: ", self.output_dense, "******************************\n\n\n")
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
 
     def __call__(self, context_with_latent, is_training=False, decoder_inputs=None):
         # diamention of context_with_latent:
@@ -69,11 +66,7 @@ class Decoder(BaseModel):
                 logits = train_output.rnn_output  # (batch_size, dec_max_lentgh, vocab_size) 概率分布, dec_max_length is the length of the sentence
                 # sample_id will be the ids of the max values in rnn_outputs outputs: sample_ids = tf.cast(tf.argmax(outputs, axis=-1), tf.int32)
                 sample_id = train_output.sample_id  # (batch_size, dec_max_length) 解码结果: an amount of dec_max_length of ids of highest proba vocab word
-<<<<<<< HEAD
-                return logits, sample_id, embedded_inputs
-=======
                 return logits, sample_id
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
             else:  # inferring
                 infer_decoder = tfa.seq2seq.BeamSearchDecoder(
                     cell=self.decoder_cell,

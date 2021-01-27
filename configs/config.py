@@ -12,24 +12,18 @@ args['keep_prob']=0.8
 args['num_layer']=2
 args['test_ratio']=0.3
 args['num_pre_utterance']=3
-<<<<<<< HEAD
-args['learning_rate']=0.001
+args['learning_rate']=0.00001
 
-args['batch_size']=512
-=======
-args['learning_rate']=0.0001
-
-args['batch_size']=40
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
-args['n_epochs']=20
+args['batch_size']=128
+args['n_epochs']=10
 args['display_step']=10
 
-args['vocab_size']=20000
+args['vocab_size']=25000
 args['num_sampled']=1000
-args['word_dropout_rate']=0.8
+args['word_dropout_rate']=0.9
 
-args['max_len']=15
-args['embed_dims']=96
+args['max_len']=30
+args['embed_dims']=100
 
 args['rnn_size']=128
 args['beam_width']=5

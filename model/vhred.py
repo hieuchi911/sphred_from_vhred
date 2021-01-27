@@ -4,6 +4,7 @@ from .encoder import Encoder
 from .decoder import Decoder
 from .model_utils import reparamter_trick, kl_weights_fn, kl_loss_fn
 import numpy as np
+from data import ids_to_words
 
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -64,7 +65,7 @@ class VHRED(BaseModel):
 
     def build_encoder_current_step_graph(self):
         with tf.compat.v1.variable_scope('encoder/current_step', reuse=tf.compat.v1.AUTO_REUSE):
-            outputs, states = self.encoder_RNN(self.decoder_inputs) # The fourth 4th utterance as response to the third
+            outputs, states = self.encoder_RNN(self.decoder_targets) # The fourth 4th utterance as response to the third
             self.current_step_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to current_step_states
 
     def build_context_graph(self):
@@ -142,7 +143,7 @@ class VHRED(BaseModel):
         with tf.compat.v1.variable_scope('train/decoder', reuse=tf.compat.v1.AUTO_REUSE):
             # (num_layer, (batch_size, state_dim+latent_size))
             self.context_with_latent_train = tf.concat([self.context_state, self.posterior_z_tuple], -1)
-            self.train_logits, self.train_sample_id, self.embeddings = self.decoder_RNN(
+            self.train_logits, self.train_sample_id = self.decoder_RNN(
                 context_with_latent=self.context_with_latent_train,
                 is_training=True,
                 decoder_inputs=self.decoder_inputs)
@@ -181,10 +182,10 @@ class VHRED(BaseModel):
     def encoder_state_session(self, sess, enc_inp):
         result = sess.run(self.enc_state_list, feed_dict={self.encoder_inputs: enc_inp})
         # result = sess.run(self.current_utterance_inputs, feed_dict={self.encoder_inputs:enc_inp})
-        return result, state
+        return result
 
-    def encoder_current_step_session(self, sess, dec_inp):
-        result = sess.run(self.current_step_state, feed_dict={self.decoder_inputs: dec_inp})
+    def encoder_current_step_session(self, sess, dec_tar):
+        result = sess.run(self.current_step_state, feed_dict={self.decoder_targets: dec_tar})
         return result
 
     def context_state_session(self, sess, enc_inp):
@@ -195,16 +196,15 @@ class VHRED(BaseModel):
         result = sess.run(self.prior_z_tuple, feed_dict={self.encoder_inputs: enc_inp})
         return result
 
-    def posterior_z_session(self, sess, enc_inp, dec_inp):
+    def posterior_z_session(self, sess, enc_inp, dec_inp, dec_tar):
         result = sess.run(self.posterior_z_tuple,
-                          feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+                          feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar})
         return result
 
-    def train_decoder_session(self, sess, enc_inp, dec_inp):
+    def train_decoder_session(self, sess, enc_inp, dec_inp, dec_tar):
         train_logits, train_sample_id = sess.run([self.train_logits, self.train_sample_id],
-                                                 feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
-<<<<<<< HEAD
-        print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
+                                                 feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar})
+        # print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
         array_of = {}
         array_gt_3 = {}
         tracker = 0
@@ -214,24 +214,23 @@ class VHRED(BaseModel):
           if i >= train_logits[0][0][3]:
             array_gt_3[tracker] = i
           tracker += 1
-        print("len of train_logits[0]: ", len(train_logits[0]), "and type is: ", type(train_logits[0][0]))
-        print("array_of: ", array_of, "\nAnd length of array_of is: ", len(array_of))
-        print("array_gt_3: ", array_gt_3, "\nAnd length of array_gt_3 is: ", len(array_gt_3))
-        print("\n\n\n*******************************\tOutput dense ids: ", train_sample_id, "\n*******************************\n\n\n")
-=======
-        print("\n\n\n*******************************\tOutput dense logits: ", train_logits, "\n************************************\n\n\n")
-        print("\n\n\n*******************************\tOutput dense ids: ", train_sample_id, "\n************************************\n\n\n")
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
+        print("\n\n\n*******************************\n*******************************\n\n\n")
+        print("\t\t\t\t\tTRAIN DECODER SESSION: return train_logits and train sample ids\n")
+        print("Train_sample_id: ", train_sample_id, ", \n shape: ", np.shape(train_sample_id))
+        print("Train_sample_id[0]: ", train_sample_id[0])
+        print("train_logits[0]: ", train_logits[0][0])
+        # print("\t\tarray_of: ", array_of, "\n\t\tAnd length of array_of is: ", len(array_of))
+        # print("\t\tarray_gt_3: ", array_gt_3, "\n\t\tAnd length of array_gt_3 is: ", len(array_gt_3))
+        print("\t\tThe previous utterances are: \n\t\t\t", ids_to_words(enc_inp[0], self.dataLoader.id_to_word, is_pre_utterance=True))
+        print("\t\tThe first true response is: \n\t\t\t", ids_to_words(dec_tar[0], self.dataLoader.id_to_word, is_pre_utterance=False))
+        print("\t\tThe first sample is: \n\t\t\t", ids_to_words(train_sample_id[0], self.dataLoader.id_to_word, is_pre_utterance=False))
+        print("\n\n\n*******************************\n*******************************\n\n\n")
         return train_logits, train_sample_id
 
     def infer_decoder_session(self, sess, enc_inp):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
                                      feed_dict={self.encoder_inputs: enc_inp})
-        print("\n\n\n*******************************latent plus context output:\n", sess.run(self.context_with_latent_infer, feed_dict={self.encoder_inputs: enc_inp}))
-<<<<<<< HEAD
-=======
-        # print("Output dense: ", sess.run(self.cell_outputs(input_shape=(args['batch_size'], args['rnn_size'])).output, feed_dict={self.encoder_inputs: enc_inp}), "\n************************************\n\n\n")
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
+        # print("\n\n\n*******************************latent plus context output:\n", sess.run(self.context_with_latent_infer, feed_dict={self.encoder_inputs: enc_inp}))
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp, dec_tar):
@@ -241,7 +240,7 @@ class VHRED(BaseModel):
         return kl_loss
 
     def loss_session(self, sess, enc_inp, dec_inp, dec_tar):
-        loss = sess.run(self.loss, feed_dict={self.encoder_inputs: enc_inp,
+        loss= sess.run(self.loss, feed_dict={self.encoder_inputs: enc_inp,
                                               self.decoder_inputs: dec_inp,
                                               self.decoder_targets: dec_tar})
         return loss

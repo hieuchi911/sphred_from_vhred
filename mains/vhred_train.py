@@ -28,7 +28,7 @@ class VHREDTrainer(object):
     def sample_test(self, model, dataLoader, sess):
         for enc_inp, dec_inp, dec_tar in dataLoader.test_generator():
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp)
-            logits = model.train_decoder_session(sess, enc_inp, dec_inp)
+            
             sample_previous_utterance_id = enc_inp[:3]
             sample_infer_response_id = infer_decoder_ids[-1][:3]
             sample_true_response_id = dec_tar[:3]
@@ -58,24 +58,67 @@ class VHREDTrainer(object):
             loss = 0.0
             nll_loss = 0.0
             kl_loss = 0.0
+            loss_bf_update = 0.0
+            kl_loss_bf_update = 0.0
+            loss_aft_update = 0.0
+            kl_loss_aft_update = 0.0
             count = 0
+            the_line = "------------------------------------------------------------"
+            count_1 = 0
 
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.train_generator(), desc="training"):
-                # print("target: ", dec_tar, "\ndec_input", dec_inp)
+                count_1 += 1
+                count += 1
+                loss_bf_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
+                kl_loss_bf_update += model.kl_loss_session(sess, enc_inp, dec_inp, dec_tar)
+                # if count % args['display_step'] == 0:
+                #   print(f"\n\n\n\n\n\n{the_line}\n{the_line}\nBEFORE UPDATING TRAINABLE VARIABLES\n{the_line}\n{the_line}\n\n\n\n\n\n")
+                #   print("For enc_inp: ", ids_to_words(enc_inp[0], dataLoader.id_to_word, is_pre_utterance=True))
+                #   print("The encoded hidden vectors for the 3 previous utterances above is: ", model.encoder_state_session(sess, enc_inp))
+                #   print("\nThe context 2 hidden vectors for these utterances is: ", model.context_state_session(sess, enc_inp))
+                #   print("The correct 4th response (dec_tar) is: ", ids_to_words(dec_tar[0], dataLoader.id_to_word, is_pre_utterance=False))
+                #   print("The posterior latent z deducted from encoder RNN output of dec_tar and context is: ", model.posterior_z_session(sess, enc_inp, dec_inp, dec_tar))
+                #   train_logits, train_sample_ids = model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
+                #   print("So the decoded logits (train_logits from TRAIN DECODER SESSION) is: ", train_logits)
+                #   print("-----> These logits correspond to following ids (train_sample_id from TRAIN DECODER SESSION, will be compared with dec_tar):\n", train_sample_ids)
+                #   print("Compare these above ids with true ids: (dec_tar)\n", dec_tar)
+                #   print("Specifically compare: first train_sample_ids: \n\t\t", train_sample_ids[0], "\n\t\t and first dec_tar:\n\t\t", dec_tar[0])
+                  
+                #   print("\n\n==========\n\nTherefore, loss between decoded output and decoder target dec_tar is: ", loss_bf_update/count)
+                #   print("Also, KL difference between posterior and prior distribution is: ", kl_loss_bf_update/count)
+                #   print("\n\n==========\n\n")
+
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
-<<<<<<< HEAD
-                latent_posterior = model.posterior_z_session(sess, enc_inp, dec_inp)
-=======
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
+                
+                loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
+                kl_loss_aft_update += model.kl_loss_session(sess, enc_inp, dec_inp, dec_tar)
+                # if count % args['display_step'] == 0:
+                #   if count < 25:
+                #     print("dec_inp: \n", dec_inp)
+                #   print(f"\n\n\n\n\n\n{the_line}\n{the_line}\nAFTER UPDATING TRAINABLE VARIABLES\n{the_line}\n{the_line}\n\n\n\n\n\n")
+                #   print("For enc_inp: ", ids_to_words(enc_inp[0], dataLoader.id_to_word, is_pre_utterance=True))
+                #   print("The encoded hidden vectors for the 3 previous utterances above is: ", model.encoder_state_session(sess, enc_inp))
+                #   print("\nThe context 2 hidden vectors for these utterances is: ", model.context_state_session(sess, enc_inp))
+                #   print("The correct 4th response (dec_tar) is: ", ids_to_words(dec_tar[0], dataLoader.id_to_word, is_pre_utterance=False))
+                #   print("The posterior latent z deducted from encoder RNN output of dec_tar and context is: ", model.posterior_z_session(sess, enc_inp, dec_inp, dec_tar))
+                #   train_logits, train_sample_ids = model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
+                #   print("So the decoded logits (train_logits from TRAIN DECODER SESSION) is: ", train_logits)
+                #   print("-----> These logits correspond to following ids (train_sample_id from TRAIN DECODER SESSION, will be compared with dec_tar):\n", train_sample_ids)
+                #   print("Compare previous ids with true ids: (dec_tar)\n", dec_tar)
+                #   print("Specifically compare: first train_sample_ids: \n\t\t", train_sample_ids[0], "\n\t\t and first dec_tar:\n\t\t", dec_tar[0])
+                #   print("\n\n==========\n\nTherefore, loss between decoded output and decoder target dec_tar is: ", loss_aft_update/count)
+                #   print("Also, KL difference between posterior and prior distribution is: ", kl_loss_aft_update/count)
+                #   print("\n\n==========\n\n")
                 
               
-                count += 1
+                
                 global_step = train_out['global_step']
                 loss += train_out['loss']
                 nll_loss += train_out['nll_loss']
                 kl_loss += train_out['kl_loss']
 
                 if count % args['display_step'] == 0:
+                    model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
                     current_loss = loss / count
                     current_nll_loss = nll_loss / count
                     current_kl_loss = kl_loss / count
@@ -110,7 +153,11 @@ class VHREDTrainer(object):
             test_nll_loss = 0.0
             test_kl_loss = 0.0
             test_count = 0
+            count_1 = 0
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.test_generator(), desc="testing"):
+                count_1 += 1
+                # if count_1 > 2:
+                #   break
                 test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar)
                 test_loss += test_out['loss_test']
                 test_nll_loss += test_out['nll_loss_test']
