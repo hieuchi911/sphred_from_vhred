@@ -2,21 +2,13 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="fe15bde0-c560-4ca1-aed2-7b92894ec3d9" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/base/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/base/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/base/base_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/base/base_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/base/base_trainer.py" beforeDir="false" afterPath="$PROJECT_DIR$/base/base_trainer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/configs/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/configs/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/data/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/data_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/data/data_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/dictionary.txt" beforeDir="false" afterPath="$PROJECT_DIR$/data/dictionary.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/raw_training_text.txt" beforeDir="false" afterPath="$PROJECT_DIR$/data/raw_training_text.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/samples_1.txt" beforeDir="false" afterPath="$PROJECT_DIR$/data/samples_1.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/vhred_pipline.py" beforeDir="false" afterPath="$PROJECT_DIR$/data/vhred_pipline.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/log/example.py" beforeDir="false" afterPath="$PROJECT_DIR$/log/example.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mains/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/mains/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mains/vhred_train.py" beforeDir="false" afterPath="$PROJECT_DIR$/mains/vhred_train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/decoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/decoder.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/encoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/encoder.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/model_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/model_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/vhred.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/vhred.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/vocab_1.txt" beforeDir="false" afterPath="$PROJECT_DIR$/data/vocab_1.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +28,7 @@
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="preferences.lookFeel" />
   </component>
   <component name="RunManager" selected="Python.main">
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
@@ -106,10 +98,10 @@
       <screen x="0" y="0" width="1366" height="728" />
     </state>
     <state x="137" y="19" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1366.728@0.0.1366.728" timestamp="1606362200449" />
-    <state x="463" y="119" key="FileChooserDialogImpl" timestamp="1606716412984">
+    <state x="463" y="119" key="FileChooserDialogImpl" timestamp="1611632708381">
       <screen x="0" y="0" width="1366" height="728" />
     </state>
-    <state x="463" y="119" key="FileChooserDialogImpl/0.0.1366.728@0.0.1366.728" timestamp="1606716412984" />
+    <state x="463" y="119" key="FileChooserDialogImpl/0.0.1366.728@0.0.1366.728" timestamp="1611632708381" />
     <state width="672" height="206" key="GridCell.Tab.0.bottom" timestamp="1607344302322">
       <screen x="0" y="0" width="1366" height="728" />
     </state>
@@ -126,13 +118,17 @@
       <screen x="0" y="0" width="1366" height="728" />
     </state>
     <state width="672" height="206" key="GridCell.Tab.0.right/0.0.1366.728@0.0.1366.728" timestamp="1607344302322" />
-    <state x="184" y="6" key="SettingsEditor" timestamp="1606390626487">
+    <state x="184" y="6" key="SettingsEditor" timestamp="1611633007305">
       <screen x="0" y="0" width="1366" height="728" />
     </state>
-    <state x="184" y="6" key="SettingsEditor/0.0.1366.728@0.0.1366.728" timestamp="1606390626487" />
-    <state x="379" y="188" key="com.intellij.ide.util.TipDialog" timestamp="1606716388381">
+    <state x="184" y="6" key="SettingsEditor/0.0.1366.728@0.0.1366.728" timestamp="1611633007305" />
+    <state x="379" y="188" key="com.intellij.ide.util.TipDialog" timestamp="1611724662298">
       <screen x="0" y="0" width="1366" height="728" />
     </state>
-    <state x="379" y="188" key="com.intellij.ide.util.TipDialog/0.0.1366.728@0.0.1366.728" timestamp="1606716388381" />
+    <state x="379" y="188" key="com.intellij.ide.util.TipDialog/0.0.1366.728@0.0.1366.728" timestamp="1611724662298" />
+    <state x="371" y="210" width="707" height="307" key="org.intellij.images.editor.actions.BackgroundImageDialog" timestamp="1611633006335">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="371" y="210" width="707" height="307" key="org.intellij.images.editor.actions.BackgroundImageDialog/0.0.1366.728@0.0.1366.728" timestamp="1611633006335" />
   </component>
 </project>

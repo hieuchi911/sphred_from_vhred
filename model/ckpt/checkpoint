@@ -1,7 +1,0 @@
-<<<<<<< HEAD
-model_checkpoint_path: "vhred-32"
-all_model_checkpoint_paths: "vhred-32"
-=======
-model_checkpoint_path: "vhred-1266"
-all_model_checkpoint_paths: "vhred-1266"
->>>>>>> 9e1285de6039b36ba44fc97a89df5849858aad04
