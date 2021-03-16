@@ -57,7 +57,7 @@ class Decoder(BaseModel):
                     maximum_iterations=tf.reduce_max(input_tensor=decoder_lengths),
                     decoder_init_input=embedded_inputs,
                     decoder_init_kwargs={
-                        'initial_state': init_state_tuple
+                        'initial_state': init_state_tuple, 'sequence_length': decoder_lengths
                     })
                 # train_output is a BasicDecoderOutput, deducted from the decoder, since decoder.step is used in dynamic_decode,
                 # then output of decoder.step is processed and returned by dynamic_decode.
@@ -84,7 +84,6 @@ class Decoder(BaseModel):
                     })
                 # print("**********************************\n******************************\n********************************\n", "\n**********************************\n******************************\n********************************\n")
                 infer_predicted_ids = infer_output.predicted_ids[:, :, 0]  # select the first sentence
-                print("----------------------------n--------------------HMM WHAT WILL THIS RETURN?", infer_predicted_ids)
 
                 # The return is a list consisting of only one element whose diamention is (batch_size, max_len)
                 return infer_predicted_ids

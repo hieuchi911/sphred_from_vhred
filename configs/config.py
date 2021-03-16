@@ -8,15 +8,15 @@ args['EOS_ID']=2
 args['UNK_ID']=3
 
 args['rnn_type']='GRU'
-args['keep_prob']=0.8
+args['keep_prob']=0.9
 args['num_layer']=2
 args['test_ratio']=0.3
 args['num_pre_utterance']=3
 args['learning_rate']=0.00001
 
-args['batch_size']=128
-args['n_epochs']=10
-args['display_step']=10
+args['batch_size']=1024
+args['n_epochs']=100
+args['display_step']=5
 
 args['vocab_size']=25000
 args['num_sampled']=1000
