@@ -65,7 +65,7 @@ class VHRED(BaseModel):
 
     def build_encoder_current_step_graph(self):
         with tf.compat.v1.variable_scope('encoder/current_step', reuse=tf.compat.v1.AUTO_REUSE):
-            outputs, states = self.encoder_RNN(self.decoder_inputs) # The fourth 4th utterance as response to the third
+            outputs, states = self.encoder_RNN(self.decoder_targets) # The fourth 4th utterance as response to the third
             self.current_step_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to current_step_states
 
     def build_context_graph(self):
@@ -143,7 +143,7 @@ class VHRED(BaseModel):
         with tf.compat.v1.variable_scope('train/decoder', reuse=tf.compat.v1.AUTO_REUSE):
             # (num_layer, (batch_size, state_dim+latent_size))
             self.context_with_latent_train = tf.concat([self.context_state, self.posterior_z_tuple], -1)
-            self.train_logits, self.train_sample_id = self.decoder_RNN(
+            self.train_logits, self.train_sample_id = self.decoder_RNN( # train_logits shape: (batch_size, dec_max_lentgh, vocab_size)
                 context_with_latent=self.context_with_latent_train,
                 is_training=True,
                 decoder_inputs=self.decoder_inputs)
@@ -153,7 +153,8 @@ class VHRED(BaseModel):
                                                                               targets=self.decoder_targets,
                                                                               weights=self.decoder_weights,
                                                                               average_across_timesteps=True,
-                                                                              average_across_batch=False))
+                                                                              average_across_batch=True,
+                                                                              sum_over_timesteps=False))
         self.kl_weights = kl_weights_fn(self.global_step)
         self.kl_loss = kl_loss_fn(mean_1=self.posterior_mean_value,
                                   log_var_1=self.posterior_log_var_value,
@@ -175,7 +176,7 @@ class VHRED(BaseModel):
             self.nll_loss_test = tf.reduce_mean(input_tensor=tfa.seq2seq.sequence_loss(logits=self.infer_decoder_logits,
                                                                                        targets=self.decoder_targets,
                                                                                        weights=self.decoder_weights,
-                                                                                       average_across_timesteps=False,
+                                                                                       average_across_timesteps=True,
                                                                                        average_across_batch=True))
             self.loss_test = self.nll_loss_test + self.kl_weights * self.kl_loss
 
@@ -184,8 +185,8 @@ class VHRED(BaseModel):
         # result = sess.run(self.current_utterance_inputs, feed_dict={self.encoder_inputs:enc_inp})
         return result
 
-    def encoder_current_step_session(self, sess, dec_inp):
-        result = sess.run(self.current_step_state, feed_dict={self.decoder_inputs: dec_inp})
+    def encoder_current_step_session(self, sess, dec_tar):
+        result = sess.run(self.current_step_state, feed_dict={self.decoder_targets: dec_tar})
         return result
 
     def context_state_session(self, sess, enc_inp):
@@ -203,27 +204,28 @@ class VHRED(BaseModel):
 
     def train_decoder_session(self, sess, enc_inp, dec_inp, dec_tar):
         train_logits, train_sample_id = sess.run([self.train_logits, self.train_sample_id],
-                                                 feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+                                                 feed_dict={self.encoder_inputs: enc_inp,
+                                                 self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar})
         # print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
-        array_of = {}
-        array_gt_3 = {}
-        tracker = 0
-        for i in train_logits[0][0]:
-          if i > 0:
-            array_of[tracker] = i
-          if i >= train_logits[0][0][3]:
-            array_gt_3[tracker] = i
-          tracker += 1
-        weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
+        # array_of = {}
+        # array_gt_3 = {}
+        # tracker = 0
+        # for i in train_logits[0][0]:
+        #   if i > 0:
+        #     array_of[tracker] = i
+        #   if i >= train_logits[0][0][3]:
+        #     array_gt_3[tracker] = i
+        #   tracker += 1
+        # weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
         print("\n\n\n*******************************\n*******************************\n\n\n")
         print("\t\t\t\t\tTRAIN DECODER SESSION: return train_logits and train sample ids\n")
         print("Train_sample_id: ", train_sample_id, ", \n shape: ", np.shape(train_sample_id))
         print("Train_sample_id[0]: ", train_sample_id[0])
         print("train_logits[0]: ", train_logits[0][0])
         print("Train logits shape: ", np.shape(train_logits))
-        print("Decoder weights shape: ", np.shape(weights))
-        print("Decoder target shape: ", np.shape(dec_tar))
-        print("\n\t\tdecoder weights: ", weights[0], "\n\t\ttrue response ids: ", dec_tar[0])
+        # print("Decoder weights shape: ", np.shape(weights))
+        # print("Decoder target shape: ", np.shape(dec_tar))
+        # print("\n\t\tdecoder weights: ", weights[0], "\n\t\ttrue response ids: ", dec_tar[0])
         # print("\t\tarray_of: ", array_of, "\n\t\tAnd length of array_of is: ", len(array_of))
         # print("\t\tarray_gt_3: ", array_gt_3, "\n\t\tAnd length of array_gt_3 is: ", len(array_gt_3))
         print("\t\tThe previous utterances are: \n\t\t\t", ids_to_words(enc_inp[0], self.dataLoader.id_to_word, is_pre_utterance=True))
@@ -235,7 +237,6 @@ class VHRED(BaseModel):
     def infer_decoder_session(self, sess, enc_inp):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
                                      feed_dict={self.encoder_inputs: enc_inp})
-        # print("\n\n\n*******************************latent plus context output:\n", sess.run(self.context_with_latent_infer, feed_dict={self.encoder_inputs: enc_inp}))
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp):
@@ -249,7 +250,33 @@ class VHRED(BaseModel):
                                               self.decoder_targets: dec_tar})
         return loss
 
-    def train_session(self, sess, enc_inp, dec_inp, dec_tar):
+    def train_session(self, sess, enc_inp, dec_inp, dec_tar):    # dec_tar is of shape (batch_size, max_len)
+        # train_logits = sess.run(self.train_logits, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        # num_classes = tf.shape(input=train_logits)[2]
+        # logits_flat = tf.reshape(train_logits, [-1, num_classes]) # turn logits from (batch_size, max_len, vocab) ---> (batch_size*max_len, vocab)
+        # targets_rank = len(np.shape(dec_tar))
+        # proba_flat = tf.nn.softmax(logits_flat, axis=1)
+        # proba_flat_print = sess.run(proba_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        # logits_flat_print = sess.run(logits_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        # weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
+        # a = '\n||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n'
+        # print('\n\n\n\n\n', a, a, a, "\n\t\tProba maxed: \n", proba_flat_print, "\n\t\tand\n\t\tTargets:\n", dec_tar)
+        # print("Cross entropy is calculated by applying log on the proba", proba_flat_print[0][dec_tar[0][0]], "at index: ", dec_tar[0][0], 'and the first target: ', dec_tar[0])
+        # if targets_rank == 2:
+        #     print("\ntarget rank is TRULY 2!!")
+        #     targets = tf.reshape(dec_tar, [-1]) # targets is then turn from (batch_size, max_len) to (batch_size*max_len)
+        #     crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        #         labels=targets, logits=logits_flat
+        #     )
+        #     print("Calculated crossent!! ", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}),"\n\n")
+        # crossent *= tf.reshape(weights, [-1])
+        # print("crossent after multiplied with weights: \n", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}), '\n')
+        # crossent = tf.reduce_sum(input_tensor=crossent)
+        # total_size = tf.reduce_sum(input_tensor=weights)
+        # crossent = tf.math.divide_no_nan(crossent, total_size)
+        # # print('is: ', crossent[0])
+        # print('Cross entropy matrix: ', sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}))
+        # print(a, a, a, '\n\n\n\n\n')
         fetches = [self.train_op, self.loss, self.nll_loss, self.kl_loss, self.global_step]
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,

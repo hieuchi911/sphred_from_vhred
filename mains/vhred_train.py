@@ -24,7 +24,8 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
 
         sess.close()
 
@@ -49,6 +50,8 @@ class VHREDTrainer(object):
     def train_model(self, model, dataLoader, sess, is_fresh_model=True):
         if not is_fresh_model:
             model.load(self.saver, sess, args['vhred_ckpt_dir'])
+            # current_lr = sess.run(model.lr)
+            # sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.01})
         best_result_loss = 1000.0
         stop = False
         best_loss = 1000
@@ -56,7 +59,8 @@ class VHREDTrainer(object):
         loss_list = []
         for epoch in range(args['n_epochs']):
             if stop:
-              print("No improvements so cease training")
+              print('\n\nlast_improvement is: ', last_improvement)
+              print("No improvements so cease training\n\n")
               break
             print()
             print("---- epoch: {}/{} | lr: {} ----".format(epoch, args['n_epochs'], sess.run(model.lr)))
@@ -77,8 +81,8 @@ class VHREDTrainer(object):
 
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.train_generator(), desc="training"):
                 count += 1
-                loss_bf_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
-                kl_loss_bf_update += model.kl_loss_session(sess, enc_inp, dec_inp)
+                # loss_bf_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
+                # kl_loss_bf_update += model.kl_loss_session(sess, enc_inp, dec_inp)
                 # if count % args['display_step'] == 0:
                 #   print(f"\n\n\n\n\n\n{the_line}\n{the_line}\nBEFORE UPDATING TRAINABLE VARIABLES\n{the_line}\n{the_line}\n\n\n\n\n\n")
                 #   print("For enc_inp: ", ids_to_words(enc_inp[0], dataLoader.id_to_word, is_pre_utterance=True))
@@ -98,8 +102,8 @@ class VHREDTrainer(object):
 
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
                 
-                loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
-                kl_loss_aft_update += model.kl_loss_session(sess, enc_inp, dec_inp)
+                # loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
+                # kl_loss_aft_update += model.kl_loss_session(sess, enc_inp, dec_inp)
                 # if count % args['display_step'] == 0:
                 #   if count < 25:
                 #     print("dec_inp: \n", dec_inp)
@@ -125,19 +129,30 @@ class VHREDTrainer(object):
                 loss_list.append(train_out['loss'])
                 nll_loss += train_out['nll_loss']
                 kl_loss += train_out['kl_loss']
-
+                
+                if last_improvement > 30:
+                    current_lr = sess.run(model.lr)
+                    sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 1.25})
+                    print("\n\n******Updated learning rate by 1.25 from ", current_lr, " to ",current_lr*1.25, "******\n\n")
+                    if last_improvement > 40:
+                      stop = True
+                      bar = '---------------------------------------------------'
+                      print("\n\n\n", bar, "\n", bar, "\n", bar, "\n", "stop is now True, last_improvement is: ", last_improvement, "\n", bar, "\n", bar, "\n", bar, "\n\n\n")
+                      break
+                # This if block below should be placed outsite of the display step, since it
+                # should verify on each train session performed on a data point
+                current_loss = loss / count
+                if current_loss < best_loss:
+                  print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
+                  best_loss = current_loss
+                  last_improvement = 0
+                  stop = False
+                else:
+                  last_improvement += 1
+                  print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
                 if count % args['display_step'] == 0:
                     model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
                     current_loss = loss / count
-                    # This if block below should be placed outsite of the display step, since it
-                    # should verify on each train session performed on a data point
-                    if current_loss < best_loss:
-                      print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
-                      best_loss = current_loss
-                      last_improvement = 0
-                    else:
-                      print("\n\nNo improvement, best loss is: ", best_loss, "\n\n")
-                      last_improvement += 1
                     current_nll_loss = nll_loss / count
                     current_kl_loss = kl_loss / count
                     current_perplexity = math.exp(float(current_nll_loss)) if current_nll_loss < 300 else float("inf")
@@ -148,8 +163,6 @@ class VHREDTrainer(object):
                                                                                                        current_nll_loss,
                                                                                                        current_kl_loss,
                                                                                                        current_perplexity))
-                    if last_improvement > 15:
-                      stop = True
                     # length_of_enc_state_list, states = model.encoder_state_session(sess, enc_inp)
                     # print("states: ", np.shape(states))
                     # print("length_of_enc_state_list: ", np.shape(length_of_enc_state_list))
@@ -169,15 +182,14 @@ class VHREDTrainer(object):
                                                                                            kl_loss,
                                                                                            perplexity))
 
+            # plt.plot(loss_list)
+            # plt.show()
+            
             test_loss = 0.0
             test_nll_loss = 0.0
             test_kl_loss = 0.0
             test_count = 0
             # test_count = 1
-            if epoch % 10 == 0:
-              self.sample_test(model, dataLoader, sess)
-            if test_count > 0:
-              continue
             for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.test_generator(), desc="testing"):
                 test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar)
                 test_loss += test_out['loss_test']
@@ -206,10 +218,10 @@ class VHREDTrainer(object):
                     current_lr = sess.run(model.lr)
                     # model.update_lr_op is an operation that assign model.lr with model.new_lr
                     sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.9})
+                    print("\n\n******Decreased learning rate by 0.9 from ", current_lr, " to ",current_lr*0.9, "******\n\n")
                 best_result_loss = test_loss
             toc = datetime.datetime.now()
             print(" # Epoch finished in {}".format(toc - tic))
-        self.sample_test(model, dataLoader, sess)
         print("Loss plot is: ")
         plt.plot(loss_list)
         plt.show()
