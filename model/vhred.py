@@ -61,6 +61,14 @@ class VHRED(BaseModel):
         self.lr = tf.Variable(args['learning_rate'], trainable=False)
         self.new_lr = tf.compat.v1.placeholder(tf.float32, [])
         self.update_lr_op = tf.compat.v1.assign(self.lr, self.new_lr)
+        
+        # For plotting training/testing loss
+        self.epoch = 0
+        self.loss_list = []
+        self.test_loss_list = []
+        self.training_epoch_loss = []
+        self.validation_epoch_loss = []
+        
 
     def build_encoder_graph(self):
         with tf.compat.v1.variable_scope('encoder', reuse=tf.compat.v1.AUTO_REUSE):

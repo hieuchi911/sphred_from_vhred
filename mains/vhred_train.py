@@ -61,6 +61,7 @@ class VHREDTrainer(object):
         training_epoch_loss = []
         validation_epoch_loss = []
         for epoch in range(args['n_epochs']):
+            model.epoch += 1
             if stop:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
@@ -226,7 +227,7 @@ class VHREDTrainer(object):
                                                                                           test_perplexity))
             model.validation_epoch_loss.append(np.mean(model.test_loss_list))
             print("Training loss vs. Testing loss per epoch is: ")
-            x = np.arange(epoch+1)
+            x = np.arange(model.epoch+1)
             plt.plot(x, model.training_epoch_loss)
             plt.plot(x, model.validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
@@ -235,7 +236,7 @@ class VHREDTrainer(object):
             print()
 
             print('# sample test')
-            self.sample_test(model, dataLoader, sess)
+            # self.sample_test(model, dataLoader, sess)
             model.save(self.saver, sess, args['vhred_ckpt_dir'])
             if test_loss < best_result_loss:
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
