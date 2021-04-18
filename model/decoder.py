@@ -82,7 +82,7 @@ class Decoder(BaseModel):
                     decoder_init_kwargs={
                         'start_tokens': tf.tile(tf.constant([args['SOS_ID']], dtype=tf.int32), [args['batch_size']]),
                         'end_token': args['EOS_ID'],
-                        'initial_state': init_state_tuple
+                        'initial_state': init_state_tuple # ucomment this when not use beam search:  tfa.seq2seq.tile_batch(init_state_tuple, args['beam_width'])
                     })
                 # print("**********************************\n******************************\n********************************\n", "\n**********************************\n******************************\n********************************\n")
                 # infer_predicted_ids = infer_output.predicted_ids[:, :, 0]  # select the first sentence

@@ -12,20 +12,20 @@ args['keep_prob']=0.9
 args['num_layer']=2
 args['test_ratio']=0.3
 args['num_pre_utterance']=3
-args['learning_rate']=0.00001
+args['learning_rate']=0.0005
 
-args['batch_size']=1024
+args['batch_size']=256
 args['n_epochs']=100
-args['display_step']=5
+args['display_step']=50
 
-args['vocab_size']=25000
+args['vocab_size']=250000
 args['num_sampled']=1000
 args['word_dropout_rate']=0.9
 
-args['max_len']=30
+args['max_len']=15
 args['embed_dims']=100
 
-args['rnn_size']=128
+args['rnn_size']=64
 args['beam_width']=5
 args['clip_norm']=5.0
 

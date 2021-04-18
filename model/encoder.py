@@ -10,7 +10,12 @@ class Encoder(BaseModel):
     def __init__(self, vocab_size, word_embeddings=None, is_embedding=True):
         # if is_embedding=True, this is encoder_RNN
         # if is_embedding=False, this is context_RNN
-        super().__init__('encoder')
+        if is_embedding:
+            name_rnn = 'encoder'
+        else:
+            # name_rnn = 'status'
+            name_rnn = 'context'
+        super().__init__(name_rnn)
         self.is_embedding = is_embedding
         # variable_scope: a context manager, helps differentiate different variables. get_variable is used to define new
         # vars, also to retrieve the required var if it existed before (the retrieval is enabled with reuse set to True/ like below)
@@ -47,7 +52,7 @@ class Encoder(BaseModel):
             else:
                 # Used for Context RNN, and since it uses Encoder RNN output, which is already a meaningful embedding (non-index style)
                 encoder_lengths = None
-                embedded_inputs = inputs
+                embedded_inputs = inputs    # (utterance_num, state_dim)
 
             # plug in the embedded_inputs above (context/ encoder RNN) to the RNN cell defined in self.encoder_cell of create_multi_rnn_cell
             outputs, states = tf.compat.v1.nn.dynamic_rnn(self.encoder_cell, embedded_inputs, encoder_lengths,

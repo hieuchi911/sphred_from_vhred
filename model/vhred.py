@@ -17,6 +17,11 @@ class VHRED(BaseModel):
         self.dataLoader = dataLoader
         # Initialize 3 modules: Encoder RNN, Context RNN and Decoder RNN
         self.encoder_RNN = Encoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix)
+        # SPHRED:
+        # self.statusA = Encoder(dataLoader.vocab_size, is_embedding=False)
+        # self.statusB = Encoder(dataLoader.vocab_size, is_embedding=False)
+
+        # SPHRED:
         self.context_RNN = Encoder(dataLoader.vocab_size, is_embedding=False)
         self.decoder_RNN = Decoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix)
         # print("\n\n\n\n\n\n\n\n\n--------------------------\n\nErMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\n\n--------------------------\n\n\n\n\n\n\n\n\n")
@@ -46,6 +51,8 @@ class VHRED(BaseModel):
         self.decoder_targets = tf.compat.v1.placeholder(tf.int32, [None, None])  # (batch_size, max_len)
         self.encoder_lengths = tf.math.count_nonzero(self.encoder_inputs, -1, dtype=tf.int32)  # (batch_size) 每行句子的长度
         self.decoder_lengths = tf.math.count_nonzero(self.decoder_inputs, -1, dtype=tf.int32)
+        # SPHRED:
+        # self.context_RNN = tf.compat.v1.placeholder(tf.float32, [2 * args['rnn_size']])
 
         self.global_step = tf.Variable(0, trainable=False)
         self.dec_max_len = tf.reduce_max(input_tensor=self.decoder_lengths, name="dec_max_len")
@@ -70,10 +77,20 @@ class VHRED(BaseModel):
 
     def build_context_graph(self):
         with tf.compat.v1.variable_scope('context', reuse=tf.compat.v1.AUTO_REUSE):
+            # enc_state_list is an already-encoded matrix of hidden states for all previous utterances
             self.enc_state_list = tf.transpose(a=self.enc_state_list,
                                                perm=[1, 0, 2])  # (batch_size, utterance_num, state_dim)
             outputs, states = self.context_RNN(self.enc_state_list)
+            # SPHRED:
+            # enc_A = self.enc_state_list['odd_indices']  # CHANGE THISSSSSSSSS
+            # _, status_A = self.statusA(enc_A)
+
+            # enc_B = self.enc_state_list['even_indices'] # CHANGE THISSSSSSSSS
+            # _, status_B = self.statusB(enc_B)
+
             self.context_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to context_state
+            # SPHRED:
+            # self.context_state = tf.concat(status_A, status_B)
 
     def build_prior_graph(self):
         with tf.compat.v1.variable_scope('prior', reuse=tf.compat.v1.AUTO_REUSE):
@@ -281,7 +298,9 @@ class VHRED(BaseModel):
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,
                      self.decoder_targets: dec_tar}
+        # print("\nIN TRAIN SESSION, BEFORE LOSS AND UPDATE TRAINABLE VARS")
         _, loss, nll_loss, kl_loss, global_step = sess.run(fetches, feed_dict)
+        # print("IN TRAIN SESSION, AFTER CALCULATING LOSS AND UPDATE TRAINABLE VARS")
         return {'loss': loss, 'nll_loss': nll_loss, 'kl_loss': kl_loss, 'global_step': global_step}
 
     def test_session(self, sess, enc_inp, dec_inp, dec_tar):

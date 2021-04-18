@@ -24,8 +24,8 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
 
         sess.close()
 
@@ -51,12 +51,15 @@ class VHREDTrainer(object):
         if not is_fresh_model:
             model.load(self.saver, sess, args['vhred_ckpt_dir'])
             # current_lr = sess.run(model.lr)
-            # sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.01})
+            # sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 5})
         best_result_loss = 1000.0
         stop = False
         best_loss = 1000
         last_improvement = 0
         loss_list = []
+        test_loss_list = []
+        training_epoch_loss = []
+        validation_epoch_loss = []
         for epoch in range(args['n_epochs']):
             if stop:
               print('\n\nlast_improvement is: ', last_improvement)
@@ -99,9 +102,11 @@ class VHREDTrainer(object):
                 #   print("\n\n==========\n\nTherefore, loss between decoded output and decoder target dec_tar is: ", loss_bf_update/count)
                 #   print("Also, KL difference between posterior and prior distribution is: ", kl_loss_bf_update/count)
                 #   print("\n\n==========\n\n")
-
+                # print("\nENTER OF TRAIN SESSION\n")
+                
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
                 
+                # print("\nOUT OF TRAIN SESSION\n")
                 # loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
                 # kl_loss_aft_update += model.kl_loss_session(sess, enc_inp, dec_inp)
                 # if count % args['display_step'] == 0:
@@ -126,31 +131,39 @@ class VHREDTrainer(object):
                 
                 global_step = train_out['global_step']
                 loss += train_out['loss']
-                loss_list.append(train_out['loss'])
                 nll_loss += train_out['nll_loss']
                 kl_loss += train_out['kl_loss']
                 
-                if last_improvement > 30:
-                    current_lr = sess.run(model.lr)
-                    sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 1.25})
-                    print("\n\n******Updated learning rate by 1.25 from ", current_lr, " to ",current_lr*1.25, "******\n\n")
-                    if last_improvement > 40:
-                      stop = True
-                      bar = '---------------------------------------------------'
-                      print("\n\n\n", bar, "\n", bar, "\n", bar, "\n", "stop is now True, last_improvement is: ", last_improvement, "\n", bar, "\n", bar, "\n", bar, "\n\n\n")
-                      break
+                # if last_improvement > 30 and last_improvement < 60:
+                #     current_lr = sess.run(model.lr)
+                #     sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 1.25})
+                #     print("\n\n******Updated learning rate by 1.25 from ", current_lr, " to ",current_lr*1.25, "******\n\n")
+                # elif last_improvement >= 60 and last_improvement < 80:
+                #     # stop = True
+                #     bar = '---------------------------------------------------'
+                #     print("\n\n\n", bar, "\n", bar, "\n", bar, "\n", "stop is now True, last_improvement is: ", last_improvement, "\n", bar, "\n", bar, "\n", bar, "\n\n\n")
+                #     # break
+                # elif last_improvement >= 80 and last_improvement < 95:
+                #     current_lr = sess.run(model.lr)
+                #     sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.8})
+                #     print("\n\n******Updated learning rate by 0.8 from ", current_lr, " to ",current_lr*0.8, "******\n\n")
+
                 # This if block below should be placed outsite of the display step, since it
                 # should verify on each train session performed on a data point
                 current_loss = loss / count
+                model.loss_list.append(current_loss)
                 if current_loss < best_loss:
-                  print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
                   best_loss = current_loss
                   last_improvement = 0
                   stop = False
                 else:
                   last_improvement += 1
-                  print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
+                #   print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
                 if count % args['display_step'] == 0:
+                    if current_loss < best_loss:
+                        print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
+                    else:
+                        print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
                     model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
                     current_loss = loss / count
                     current_nll_loss = nll_loss / count
@@ -168,6 +181,7 @@ class VHREDTrainer(object):
                     # print("length_of_enc_state_list: ", np.shape(length_of_enc_state_list))
             # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
             # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
+            model.training_epoch_loss.append(np.mean(model.loss_list))
 
 
             print(count)
@@ -182,8 +196,9 @@ class VHREDTrainer(object):
                                                                                            kl_loss,
                                                                                            perplexity))
 
-            # plt.plot(loss_list)
-            # plt.show()
+            print("Loss plot per iteration is: ")
+            plt.plot(model.loss_list)
+            plt.show()
             
             test_loss = 0.0
             test_nll_loss = 0.0
@@ -196,6 +211,9 @@ class VHREDTrainer(object):
                 test_nll_loss += test_out['nll_loss_test']
                 test_kl_loss += test_out['kl_loss']
                 test_count += 1
+                model.test_loss_list.append(test_out['loss_test'])
+                if stop and epoch < 2:
+                    break
             test_loss /= test_count
             test_nll_loss /= test_count
             test_kl_loss /= test_count
@@ -206,12 +224,19 @@ class VHREDTrainer(object):
                                                                                           test_nll_loss,
                                                                                           test_kl_loss,
                                                                                           test_perplexity))
+            model.validation_epoch_loss.append(np.mean(model.test_loss_list))
+            print("Training loss vs. Testing loss per epoch is: ")
+            x = np.arange(epoch+1)
+            plt.plot(x, model.training_epoch_loss)
+            plt.plot(x, model.validation_epoch_loss)
+            plt.legend(['training loss', 'validation loss'], loc='upper left')
+            plt.show()
 
             print()
 
             print('# sample test')
             self.sample_test(model, dataLoader, sess)
-
+            model.save(self.saver, sess, args['vhred_ckpt_dir'])
             if test_loss < best_result_loss:
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
                 if np.abs(best_result_loss - test_loss) < 0.03:
@@ -222,6 +247,10 @@ class VHREDTrainer(object):
                 best_result_loss = test_loss
             toc = datetime.datetime.now()
             print(" # Epoch finished in {}".format(toc - tic))
-        print("Loss plot is: ")
-        plt.plot(loss_list)
+        print("Loss plot per iteration is: ")
+        plt.plot(model.loss_list)
+        plt.show()
+        print("Training loss vs. Testing loss per epoch is: ")
+        plt.plot(model.training_epoch_loss, model.validation_epoch_loss)
+        plt.legend(['training loss', 'validation loss'], loc='upper left')
         plt.show()
