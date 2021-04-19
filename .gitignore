@@ -1,2 +1,6 @@
 **/data/
 **/model/ckpt/
+**/base/__pycache__/
+**/configs/__pycache__/
+**/mains/__pycache__/
+**/model/__pycache__/

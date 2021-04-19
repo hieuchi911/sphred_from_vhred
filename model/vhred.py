@@ -63,11 +63,25 @@ class VHRED(BaseModel):
         self.update_lr_op = tf.compat.v1.assign(self.lr, self.new_lr)
         
         # For plotting training/testing loss
-        self.epoch = 0
-        self.loss_list = []
-        self.test_loss_list = []
-        self.training_epoch_loss = []
-        self.validation_epoch_loss = []
+        self.epoch = tf.Variable(0.0, trainable=False)
+        self.new_epoch = tf.compat.v1.placeholder(tf.float32, [])
+        self.update_epoch_op = tf.compat.v1.assign(self.epoch, self.new_epoch)
+        
+        self.loss_list = tf.Variable([], trainable=False)
+        self.new_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_loss_list_op = tf.compat.v1.assign(self.loss_list, self.new_loss_list)
+
+        self.test_loss_list = tf.Variable([], trainable=False)
+        self.new_test_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_test_loss_list_op = tf.compat.v1.assign(self.test_loss_list, self.new_test_loss_list)
+
+        self.training_epoch_loss = tf.Variable([], trainable=False)
+        self.new_training_epoch_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_training_epoch_loss_list_op = tf.compat.v1.assign(self.training_epoch_loss, self.new_training_epoch_loss_list)
+        
+        self.validation_epoch_loss = tf.Variable([], trainable=False)
+        self.new_validation_epoch_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_validation_epoch_loss_list_op = tf.compat.v1.assign(self.validation_epoch_loss, self.new_validation_epoch_loss_list)
         
 
     def build_encoder_graph(self):

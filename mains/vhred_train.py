@@ -56,12 +56,20 @@ class VHREDTrainer(object):
         stop = False
         best_loss = 1000
         last_improvement = 0
-        loss_list = []
-        test_loss_list = []
-        training_epoch_loss = []
-        validation_epoch_loss = []
+        loss_list = sess.run(model.loss_list)
+        test_loss_list = sess.run(model.test_loss_list)
+        training_epoch_loss = sess.run(model.training_epoch_loss)
+        validation_epoch_loss = sess.run(model.validation_epoch_loss)
+        model_epoch = sess.run(model.epoch)
         for epoch in range(args['n_epochs']):
-            model.epoch += 1
+            x = np.arange(model_epoch+1)
+            plt.plot(training_epoch_loss)
+            plt.plot(validation_epoch_loss)
+            plt.legend(['training loss', 'validation loss'], loc='upper left')
+            plt.show()
+
+            plt.plot(loss_list)
+            plt.show()
             if stop:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
@@ -152,7 +160,7 @@ class VHREDTrainer(object):
                 # This if block below should be placed outsite of the display step, since it
                 # should verify on each train session performed on a data point
                 current_loss = loss / count
-                model.loss_list.append(current_loss)
+                loss_list = np.append(loss_list, current_loss)
                 if current_loss < best_loss:
                   best_loss = current_loss
                   last_improvement = 0
@@ -182,7 +190,7 @@ class VHREDTrainer(object):
                     # print("length_of_enc_state_list: ", np.shape(length_of_enc_state_list))
             # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
             # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
-            model.training_epoch_loss.append(np.mean(model.loss_list))
+            training_epoch_loss = np.append(training_epoch_loss, np.mean(loss_list))
 
 
             print(count)
@@ -198,7 +206,7 @@ class VHREDTrainer(object):
                                                                                            perplexity))
 
             print("Loss plot per iteration is: ")
-            plt.plot(model.loss_list)
+            plt.plot(loss_list)
             plt.show()
             
             test_loss = 0.0
@@ -212,7 +220,7 @@ class VHREDTrainer(object):
                 test_nll_loss += test_out['nll_loss_test']
                 test_kl_loss += test_out['kl_loss']
                 test_count += 1
-                model.test_loss_list.append(test_out['loss_test'])
+                test_loss_list = np.append(test_loss_list, test_out['loss_test'])
                 if stop and epoch < 2:
                     break
             test_loss /= test_count
@@ -225,33 +233,44 @@ class VHREDTrainer(object):
                                                                                           test_nll_loss,
                                                                                           test_kl_loss,
                                                                                           test_perplexity))
-            model.validation_epoch_loss.append(np.mean(model.test_loss_list))
+            validation_epoch_loss = np.append(validation_epoch_loss, np.mean(test_loss_list))
             print("Training loss vs. Testing loss per epoch is: ")
-            x = np.arange(model.epoch+1)
-            plt.plot(x, model.training_epoch_loss)
-            plt.plot(x, model.validation_epoch_loss)
+            x = np.arange(model_epoch+1)
+            plt.plot(x, training_epoch_loss)
+            plt.plot(x, validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
 
             print()
 
             print('# sample test')
-            # self.sample_test(model, dataLoader, sess)
-            model.save(self.saver, sess, args['vhred_ckpt_dir'])
+            self.sample_test(model, dataLoader, sess)
+            
+            sess.run(model.update_epoch_op, feed_dict={model.new_epoch: model_epoch})
+            sess.run(model.update_loss_list_op, feed_dict={model.new_loss_list: loss_list})
+            sess.run(model.update_test_loss_list_op, feed_dict={model.new_test_loss_list: test_loss_list})
+            sess.run(model.update_training_epoch_loss_list_op, feed_dict={model.new_training_epoch_loss_list: training_epoch_loss})
+            sess.run(model.update_validation_epoch_loss_list_op, feed_dict={model.new_validation_epoch_loss_list: validation_epoch_loss})
+            
+            # model.save(self.saver, sess, args['vhred_ckpt_dir'])
             if test_loss < best_result_loss:
+                print("Save model since test_loss", test_loss, " < best_result_loss", best_result_loss)
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
-                if np.abs(best_result_loss - test_loss) < 0.03:
+                if np.abs(best_result_loss - test_loss) < 0.01:
                     current_lr = sess.run(model.lr)
                     # model.update_lr_op is an operation that assign model.lr with model.new_lr
-                    sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.9})
-                    print("\n\n******Decreased learning rate by 0.9 from ", current_lr, " to ",current_lr*0.9, "******\n\n")
+                    sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.95})
+                    print("\n\n******Decreased learning rate by 0.95 from ", current_lr, " to ",current_lr*0.95, "******\n\n")
                 best_result_loss = test_loss
             toc = datetime.datetime.now()
             print(" # Epoch finished in {}".format(toc - tic))
+            model_epoch += 1
         print("Loss plot per iteration is: ")
-        plt.plot(model.loss_list)
+        plt.plot(loss_list)
         plt.show()
         print("Training loss vs. Testing loss per epoch is: ")
-        plt.plot(model.training_epoch_loss, model.validation_epoch_loss)
+        x = np.arange(model_epoch+1)
+        plt.plot(x, training_epoch_loss)
+        plt.plot(x, validation_epoch_loss)
         plt.legend(['training loss', 'validation loss'], loc='upper left')
         plt.show()
