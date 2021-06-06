@@ -18,13 +18,12 @@ class VHRED(BaseModel):
         # Initialize 3 modules: Encoder RNN, Context RNN and Decoder RNN
         self.encoder_RNN = Encoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix)
         # SPHRED:
-        # self.statusA = Encoder(dataLoader.vocab_size, is_embedding=False)
-        # self.statusB = Encoder(dataLoader.vocab_size, is_embedding=False)
+        self.statusA = Encoder(dataLoader.vocab_size, is_embedding=False)
+        self.statusB = Encoder(dataLoader.vocab_size, is_embedding=False)
 
         # SPHRED:
-        self.context_RNN = Encoder(dataLoader.vocab_size, is_embedding=False)
+        # self.context_RNN = Encoder(dataLoader.vocab_size, is_embedding=False)
         self.decoder_RNN = Decoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix)
-        # print("\n\n\n\n\n\n\n\n\n--------------------------\n\nErMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\n\n--------------------------\n\n\n\n\n\n\n\n\n")
         if build_graph:
             self.build_global_helper()
             self.build_encoder_graph()
@@ -49,10 +48,13 @@ class VHRED(BaseModel):
                                                        [None, None, None])  # (batch_size, utterance_num, max_len)
         self.decoder_inputs = tf.compat.v1.placeholder(tf.int32, [None, None])  # (batch_size, max_len)
         self.decoder_targets = tf.compat.v1.placeholder(tf.int32, [None, None])  # (batch_size, max_len)
+        self.x_label = tf.compat.v1.placeholder(tf.float32, [None, None, 2])  # (batch_size, utterance_num, 2)
+        self.y_label = tf.compat.v1.placeholder(tf.float32, [None, 2])  # (batch_size, 2)
+
         self.encoder_lengths = tf.math.count_nonzero(self.encoder_inputs, -1, dtype=tf.int32)  # (batch_size) 每行句子的长度
         self.decoder_lengths = tf.math.count_nonzero(self.decoder_inputs, -1, dtype=tf.int32)
         # SPHRED:
-        # self.context_RNN = tf.compat.v1.placeholder(tf.float32, [2 * args['rnn_size']])
+        self.context_RNN = tf.compat.v1.placeholder(tf.float32, [2 * args['rnn_size']])
 
         self.global_step = tf.Variable(0, trainable=False)
         self.dec_max_len = tf.reduce_max(input_tensor=self.decoder_lengths, name="dec_max_len")
@@ -99,20 +101,14 @@ class VHRED(BaseModel):
 
     def build_context_graph(self):
         with tf.compat.v1.variable_scope('context', reuse=tf.compat.v1.AUTO_REUSE):
-            # enc_state_list is an already-encoded matrix of hidden states for all previous utterances
-            self.enc_state_list = tf.transpose(a=self.enc_state_list,
-                                               perm=[1, 0, 2])  # (batch_size, utterance_num, state_dim)
-            outputs, states = self.context_RNN(self.enc_state_list)
-            # SPHRED:
-            # enc_A = self.enc_state_list['odd_indices']  # CHANGE THISSSSSSSSS
-            # _, status_A = self.statusA(enc_A)
+            self.enc_state_list = tf.concat([tf.transpose(a=self.enc_state_list, perm=[1, 0, 2]), self.x_label], -1)  # (batch_size, utterance_num, state_dim+2)
+            enc_A = self.enc_state_list[:, 0::2, :]
+            _, status_A = self.statusA(enc_A)
 
-            # enc_B = self.enc_state_list['even_indices'] # CHANGE THISSSSSSSSS
-            # _, status_B = self.statusB(enc_B)
+            enc_B = self.enc_state_list[:, 1::2, :]
+            _, status_B = self.statusB(enc_B)
 
-            self.context_state = states  # (num_layer, (batch_size, state_dim)), so not assign states[-1] to context_state
-            # SPHRED:
-            # self.context_state = tf.concat(status_A, status_B)
+            self.context_state = tf.concat([status_A, status_B], axis=-1)
 
     def build_prior_graph(self):
         with tf.compat.v1.variable_scope('prior', reuse=tf.compat.v1.AUTO_REUSE):
@@ -180,8 +176,9 @@ class VHRED(BaseModel):
 
     def build_train_decoder_graph(self):
         with tf.compat.v1.variable_scope('train/decoder', reuse=tf.compat.v1.AUTO_REUSE):
-            # (num_layer, (batch_size, state_dim+latent_size))
-            self.context_with_latent_train = tf.concat([self.context_state, self.posterior_z_tuple], -1)
+            # (num_layer, (batch_size, state_dim+latent_size+2))
+            labels = tf.tile([self.y_label], [args['num_layer'], 1, 1])
+            self.context_with_latent_train = tf.concat([self.context_state, self.posterior_z_tuple, labels], -1)
             self.train_logits, self.train_sample_id = self.decoder_RNN( # train_logits shape: (batch_size, dec_max_lentgh, vocab_size)
                 context_with_latent=self.context_with_latent_train,
                 is_training=True,
@@ -207,8 +204,9 @@ class VHRED(BaseModel):
         self.train_op = optimizer.apply_gradients(zip(clip_grads, self.tvars), global_step=self.global_step)
 
     def build_infer_decoder_graph(self):
-        with tf.compat.v1.variable_scope('infer/decoder', reuse=tf.compat.v1.AUTO_REUSE):
-            self.context_with_latent_infer = tf.concat([self.context_state, self.prior_z_tuple], -1, name='context_with_latent_infer')
+        with tf.compat.v1.variable_scope('infer/decoder', reuse=tf.compat.v1.AUTO_REUSE):   
+            labels = tf.tile([[[1.0, 0]]], [args['num_layer'], args['batch_size'], 1])
+            self.context_with_latent_infer = tf.concat([self.context_state, self.prior_z_tuple, labels], -1, name='context_with_latent_infer')
             self.infer_decoder_ids = self.decoder_RNN(context_with_latent=self.context_with_latent_infer,
                                                       is_training=False)
             self.infer_decoder_logits = tf.one_hot(self.infer_decoder_ids, depth=self.dataLoader.vocab_size)
@@ -273,9 +271,9 @@ class VHRED(BaseModel):
         print("\n\n\n*******************************\n*******************************\n\n\n")
         return train_logits, train_sample_id
 
-    def infer_decoder_session(self, sess, enc_inp):
+    def infer_decoder_session(self, sess, enc_inp, x_labels):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
-                                     feed_dict={self.encoder_inputs: enc_inp})
+                                     feed_dict={self.encoder_inputs: enc_inp, self.x_label: x_labels})
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp):
@@ -289,7 +287,7 @@ class VHRED(BaseModel):
                                               self.decoder_targets: dec_tar})
         return loss
 
-    def train_session(self, sess, enc_inp, dec_inp, dec_tar):    # dec_tar is of shape (batch_size, max_len)
+    def train_session(self, sess, enc_inp, dec_inp, dec_tar, x_label, y_label):    # dec_tar is of shape (batch_size, max_len)
         # train_logits = sess.run(self.train_logits, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
         # num_classes = tf.shape(input=train_logits)[2]
         # logits_flat = tf.reshape(train_logits, [-1, num_classes]) # turn logits from (batch_size, max_len, vocab) ---> (batch_size*max_len, vocab)
@@ -319,17 +317,21 @@ class VHRED(BaseModel):
         fetches = [self.train_op, self.loss, self.nll_loss, self.kl_loss, self.global_step]
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,
-                     self.decoder_targets: dec_tar}
+                     self.decoder_targets: dec_tar,
+                     self.x_label: x_label,
+                     self.y_label: y_label}
         # print("\nIN TRAIN SESSION, BEFORE LOSS AND UPDATE TRAINABLE VARS")
         _, loss, nll_loss, kl_loss, global_step = sess.run(fetches, feed_dict)
         # print("IN TRAIN SESSION, AFTER CALCULATING LOSS AND UPDATE TRAINABLE VARS")
         return {'loss': loss, 'nll_loss': nll_loss, 'kl_loss': kl_loss, 'global_step': global_step}
 
-    def test_session(self, sess, enc_inp, dec_inp, dec_tar):
+    def test_session(self, sess, enc_inp, dec_inp, dec_tar, x_label, y_label):
         # fetches = [self.loss_test, self.nll_loss_test, self.kl_loss]
         fetches = [self.loss, self.nll_loss, self.kl_loss]
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,
-                     self.decoder_targets: dec_tar}
+                     self.decoder_targets: dec_tar,
+                     self.x_label: x_label,
+                     self.y_label: y_label}
         loss_test, nll_loss_test, kl_loss = sess.run(fetches, feed_dict)
         return {'loss_test': loss_test, 'nll_loss_test': nll_loss_test, 'kl_loss': kl_loss}

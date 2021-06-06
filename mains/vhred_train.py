@@ -30,8 +30,8 @@ class VHREDTrainer(object):
         sess.close()
 
     def sample_test(self, model, dataLoader, sess):
-        for enc_inp, dec_inp, dec_tar in dataLoader.test_generator():
-            infer_decoder_ids = model.infer_decoder_session(sess, enc_inp)
+        for enc_inp, dec_inp, dec_tar, x_labels, y_labels in dataLoader.test_generator():
+            infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels)
             
             sample_previous_utterance_id = enc_inp[:3]
             sample_infer_response_id = infer_decoder_ids[-1][:3]
@@ -62,20 +62,12 @@ class VHREDTrainer(object):
         validation_epoch_loss = sess.run(model.validation_epoch_loss)
         model_epoch = sess.run(model.epoch)
         for epoch in range(args['n_epochs']):
-            x = np.arange(model_epoch+1)
-            plt.plot(training_epoch_loss)
-            plt.plot(validation_epoch_loss)
-            plt.legend(['training loss', 'validation loss'], loc='upper left')
-            plt.show()
-
-            plt.plot(loss_list)
-            plt.show()
             if stop:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
               break
             print()
-            print("---- epoch: {}/{} | lr: {} ----".format(epoch, args['n_epochs'], sess.run(model.lr)))
+            print("---- epoch: {}/{} | lr: {} ----".format(model_epoch, args['n_epochs'], sess.run(model.lr)))
             tic = datetime.datetime.now()
 
             train_batch_num = dataLoader.train_batch_num
@@ -91,7 +83,7 @@ class VHREDTrainer(object):
             count = 0
             the_line = "------------------------------------------------------------"
 
-            for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.train_generator(), desc="training"):
+            for (enc_inp, dec_inp, dec_tar, x_labels, y_labels) in tqdm(dataLoader.train_generator(), desc="training"):
                 count += 1
                 # loss_bf_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
                 # kl_loss_bf_update += model.kl_loss_session(sess, enc_inp, dec_inp)
@@ -113,7 +105,7 @@ class VHREDTrainer(object):
                 #   print("\n\n==========\n\n")
                 # print("\nENTER OF TRAIN SESSION\n")
                 
-                train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar)
+                train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels)
                 
                 # print("\nOUT OF TRAIN SESSION\n")
                 # loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
@@ -169,11 +161,11 @@ class VHREDTrainer(object):
                   last_improvement += 1
                 #   print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
                 if count % args['display_step'] == 0:
-                    if current_loss < best_loss:
-                        print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
-                    else:
-                        print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
-                    model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
+                    # if current_loss < best_loss:
+                    #     print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
+                    # else:
+                    #     print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
+                    # model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
                     current_loss = loss / count
                     current_nll_loss = nll_loss / count
                     current_kl_loss = kl_loss / count
@@ -198,7 +190,7 @@ class VHREDTrainer(object):
             nll_loss = nll_loss / count
             kl_loss = kl_loss / count
             perplexity = math.exp(float(nll_loss)) if nll_loss < 300 else float("inf")
-            print('Train Epoch {}/{} | Loss {} | NLL_loss {} | KL_loss {} | PPL {}'.format(epoch,
+            print('Train Epoch {}/{} | Loss {} | NLL_loss {} | KL_loss {} | PPL {}'.format(model_epoch,
                                                                                            args['n_epochs'],
                                                                                            loss,
                                                                                            nll_loss,
@@ -214,8 +206,8 @@ class VHREDTrainer(object):
             test_kl_loss = 0.0
             test_count = 0
             # test_count = 1
-            for (enc_inp, dec_inp, dec_tar) in tqdm(dataLoader.test_generator(), desc="testing"):
-                test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar)
+            for (enc_inp, dec_inp, dec_tar, x_labels, y_labels) in tqdm(dataLoader.test_generator(), desc="testing"):
+                test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels)
                 test_loss += test_out['loss_test']
                 test_nll_loss += test_out['nll_loss_test']
                 test_kl_loss += test_out['kl_loss']
@@ -227,7 +219,7 @@ class VHREDTrainer(object):
             test_nll_loss /= test_count
             test_kl_loss /= test_count
             test_perplexity = math.exp(float(test_nll_loss)) if test_nll_loss < 300 else float("inf")
-            print('Test Epoch {}/{} | Loss {} | NLL_loss {} | KL_loss {} | PPL {}'.format(epoch,
+            print('Test Epoch {}/{} | Loss {} | NLL_loss {} | KL_loss {} | PPL {}'.format(model_epoch,
                                                                                           args['n_epochs'],
                                                                                           test_loss,
                                                                                           test_nll_loss,
@@ -235,9 +227,8 @@ class VHREDTrainer(object):
                                                                                           test_perplexity))
             validation_epoch_loss = np.append(validation_epoch_loss, np.mean(test_loss_list))
             print("Training loss vs. Testing loss per epoch is: ")
-            x = np.arange(model_epoch+1)
-            plt.plot(x, training_epoch_loss)
-            plt.plot(x, validation_epoch_loss)
+            plt.plot(training_epoch_loss)
+            plt.plot( validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
 
@@ -252,7 +243,7 @@ class VHREDTrainer(object):
             sess.run(model.update_training_epoch_loss_list_op, feed_dict={model.new_training_epoch_loss_list: training_epoch_loss})
             sess.run(model.update_validation_epoch_loss_list_op, feed_dict={model.new_validation_epoch_loss_list: validation_epoch_loss})
             
-            # model.save(self.saver, sess, args['vhred_ckpt_dir'])
+            model.save(self.saver, sess, args['vhred_ckpt_dir'])
             if test_loss < best_result_loss:
                 print("Save model since test_loss", test_loss, " < best_result_loss", best_result_loss)
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
@@ -269,8 +260,7 @@ class VHREDTrainer(object):
         plt.plot(loss_list)
         plt.show()
         print("Training loss vs. Testing loss per epoch is: ")
-        x = np.arange(model_epoch+1)
-        plt.plot(x, training_epoch_loss)
-        plt.plot(x, validation_epoch_loss)
+        plt.plot(training_epoch_loss)
+        plt.plot(validation_epoch_loss)
         plt.legend(['training loss', 'validation loss'], loc='upper left')
         plt.show()
