@@ -73,5 +73,6 @@ class Decoder(BaseModel):
                     })
                 # infer_predicted_ids = infer_output.predicted_ids[:, :, 0]  # select the first sentence
                 infer_predicted_ids = infer_output.sample_id
+                ra_ndom = 1
                 # The return is a list consisting of only one element whose diamention is (batch_size, max_len)
                 return infer_predicted_ids
