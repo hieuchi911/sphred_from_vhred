@@ -14,7 +14,7 @@ args['test_ratio']=0.3
 args['num_pre_utterance']=3
 args['learning_rate']=0.0005
 
-args['batch_size']=256
+args['batch_size']=64
 args['n_epochs']=100
 args['display_step']=50
 
@@ -29,11 +29,11 @@ args['rnn_size']=64
 args['beam_width']=5
 args['clip_norm']=5.0
 
-args['vhred_ckpt_dir']='model/ckpt/vhred'
+args['vhred_ckpt_dir']='model/ckpt/sphred'    # sphred-anneal
 args['vae_display_step']=100
 args['latent_size']=64
-args['anneal_max']=1.0
-args['anneal_bias']=144
+args['anneal_max']=0.9
+args['anneal_bias']=6000
 
 args['discriminator_dropout_rate']=0.2
 args['n_filters']=128

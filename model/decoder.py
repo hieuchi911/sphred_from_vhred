@@ -73,5 +73,6 @@ class Decoder(BaseModel):
                         'end_token': args['EOS_ID'],
                         'initial_state': tfa.seq2seq.tile_batch(init_state_tuple, args['beam_width']) # ucomment this when not use beam search:  init_state_tuple
                     })
-                infer_predicted_ids = infer_output.predicted_ids[:, :, 0]
-                return infer_predicted_ids
+                infer_predicted_ids = infer_output.predicted_ids[:, :, 0]   # (batch_size, dec_max_lentgh, vocab_size)
+                # infer_logits = infer_output.scores[:, :, 0]
+                return infer_predicted_ids#, infer_logits

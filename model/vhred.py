@@ -59,6 +59,18 @@ class VHRED(BaseModel):
         self.global_step = tf.Variable(0, trainable=False)
         self.dec_max_len = tf.reduce_max(input_tensor=self.decoder_lengths, name="dec_max_len")
         self.decoder_weights = tf.sequence_mask(self.decoder_lengths, self.dec_max_len, dtype=tf.float32)
+        
+        self.best_loss = tf.Variable(1000.0, trainable=False)
+        self.new_best_loss = tf.compat.v1.placeholder(tf.float32, [])
+        self.update_best_loss_op = tf.compat.v1.assign(self.best_loss, self.new_best_loss)
+
+        self.best_test_loss = tf.Variable(1000.0, trainable=False)
+        self.new_best_test_loss = tf.compat.v1.placeholder(tf.float32, [])
+        self.update_best_test_loss_op = tf.compat.v1.assign(self.best_test_loss, self.new_best_test_loss)
+
+        self.improve = tf.Variable(0, trainable=False)
+        self.new_improve = tf.compat.v1.placeholder(tf.int32, [])
+        self.update_improve_op = tf.compat.v1.assign(self.improve, self.new_improve)
 
         self.lr = tf.Variable(args['learning_rate'], trainable=False)
         self.new_lr = tf.compat.v1.placeholder(tf.float32, [])
@@ -72,6 +84,19 @@ class VHRED(BaseModel):
         self.loss_list = tf.Variable([], trainable=False)
         self.new_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
         self.update_loss_list_op = tf.compat.v1.assign(self.loss_list, self.new_loss_list)
+        
+        self.kl_loss_list = tf.Variable([], trainable=False)
+        self.new_kl_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_kl_loss_list_op = tf.compat.v1.assign(self.kl_loss_list, self.new_kl_loss_list)
+
+        
+        self.kl_weight_list = tf.Variable([], trainable=False)
+        self.new_kl_weight_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_kl_weight_list_op = tf.compat.v1.assign(self.kl_weight_list, self.new_kl_weight_list)
+
+        self.nll_loss_list = tf.Variable([], trainable=False)
+        self.new_nll_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
+        self.update_nll_loss_list_op = tf.compat.v1.assign(self.nll_loss_list, self.new_nll_loss_list)
 
         self.test_loss_list = tf.Variable([], trainable=False)
         self.new_test_loss_list = tf.compat.v1.placeholder(tf.float32, shape=(None))
@@ -116,32 +141,33 @@ class VHRED(BaseModel):
             self.prior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                            activation=tf.nn.tanh,
                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.01),
+                                                               0.0, 0.05),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_dense_1')
             self.prior_dense_2 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                            activation=tf.nn.tanh,
                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.01),
+                                                               0.0, 0.05),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_dense_2')
             self.prior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                         kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                            0.0, 0.01),
+                                                            0.0, 0.05),
                                                         bias_initializer=tf.compat.v1.zeros_initializer,
                                                         name='prior_mean')
-            self.prior_log_var = tf.compat.v1.layers.Dense(units=args['latent_size'],
+            self.prior_std = tf.compat.v1.layers.Dense(units=args['latent_size'],
+                                                           activation=tf.nn.softplus,
                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.01),
+                                                               0.0, 0.05),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
-                                                           name='prior_log_var', activation='softplus')
+                                                           name='prior_std')
             self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 prior_dense_1_out = self.prior_dense_1(self.context_state[i])
                 prior_dense_2_out = self.prior_dense_2(prior_dense_1_out)
                 self.prior_mean_value = self.prior_mean(prior_dense_2_out)
-                self.prior_log_var_value = self.prior_log_var(prior_dense_2_out)
-                prior_z = reparamter_trick(self.prior_mean_value, self.prior_log_var_value)  # (batch_size, latent_size)
+                self.prior_std_value = self.prior_std(prior_dense_2_out)
+                prior_z = reparamter_trick(self.prior_mean_value, self.prior_std_value)  # (batch_size, latent_size)
                 self.prior_z_tuple = self.prior_z_tuple + (prior_z,)
 
     def build_posterior_graph(self):
@@ -152,26 +178,27 @@ class VHRED(BaseModel):
             self.posterior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                                activation=tf.nn.tanh,
                                                                kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                   0.0, 0.01),
+                                                                   0.0, 0.05),
                                                                bias_initializer=tf.compat.v1.zeros_initializer,
                                                                name='posterior_dense_1')
             self.posterior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                             kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                0.0, 0.01),
+                                                                0.0, 0.05),
                                                             bias_initializer=tf.compat.v1.zeros_initializer,
                                                             name='posterior_mean')
-            self.posterior_log_var = tf.compat.v1.layers.Dense(units=args['latent_size'],
+            self.posterior_std = tf.compat.v1.layers.Dense(units=args['latent_size'],
+                                                               activation=tf.nn.softplus,
                                                                kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                   0.0, 0.01),
+                                                                   0.0, 0.05),
                                                                bias_initializer=tf.compat.v1.zeros_initializer,
-                                                               name='posterior_log_var', activation='softplus')
+                                                               name='posterior_std')
             self.posterior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 posterior_dense_1_out = self.posterior_dense_1(
                     self.context_with_current_step[i])  # (batch_size, latent_dim)
                 self.posterior_mean_value = self.posterior_mean(posterior_dense_1_out)
-                self.posterior_log_var_value = self.posterior_log_var(posterior_dense_1_out)
-                posterior_z = reparamter_trick(self.posterior_mean_value, self.posterior_log_var_value)
+                self.posterior_std_value = self.posterior_std(posterior_dense_1_out)
+                posterior_z = reparamter_trick(self.posterior_mean_value, self.posterior_std_value)
                 self.posterior_z_tuple = self.posterior_z_tuple + (posterior_z,)
 
     def build_train_decoder_graph(self):
@@ -192,10 +219,7 @@ class VHRED(BaseModel):
                                                                               average_across_batch=True,
                                                                               sum_over_timesteps=False))
         self.kl_weights = kl_weights_fn(self.global_step)
-        self.kl_loss = kl_loss_fn(mean_1=self.posterior_mean_value,
-                                  log_var_1=self.posterior_log_var_value,
-                                  mean_2=self.prior_mean_value,
-                                  log_var_2=self.prior_log_var_value)
+        self.kl_loss = kl_loss_fn(mean_1=self.posterior_mean_value, std_1=self.posterior_std_value, mean_2=self.prior_mean_value, std_2=self.prior_std_value)
         self.loss = self.nll_loss + self.kl_weights * self.kl_loss
         optimizer = tf.compat.v1.train.AdamOptimizer(self.lr)
         self.tvars = tf.compat.v1.trainable_variables()  # trainable_variables
@@ -205,7 +229,7 @@ class VHRED(BaseModel):
 
     def build_infer_decoder_graph(self):
         with tf.compat.v1.variable_scope('infer/decoder', reuse=tf.compat.v1.AUTO_REUSE):   
-            labels = tf.tile([[[1.0, 0]]], [args['num_layer'], args['batch_size'], 1])
+            labels = tf.tile([self.y_label], [args['num_layer'], 1, 1])
             self.context_with_latent_infer = tf.concat([self.context_state, self.prior_z_tuple, labels], -1, name='context_with_latent_infer')
             self.infer_decoder_ids = self.decoder_RNN(context_with_latent=self.context_with_latent_infer,
                                                       is_training=False)
@@ -226,23 +250,29 @@ class VHRED(BaseModel):
         result = sess.run(self.current_step_state, feed_dict={self.decoder_targets: dec_tar})
         return result
 
-    def context_state_session(self, sess, enc_inp):
-        result = sess.run(self.context_state, feed_dict={self.encoder_inputs: enc_inp})
+    def context_state_session(self, sess, enc_inp, x_labels):
+        result = sess.run(self.context_state, feed_dict={self.encoder_inputs: enc_inp,
+                                                         self.x_label: x_labels,})
         return result
 
-    def prior_z_session(self, sess, enc_inp):
-        result = sess.run(self.prior_z_tuple, feed_dict={self.encoder_inputs: enc_inp})
+    def prior_z_session(self, sess, enc_inp, x_labels):
+        result = sess.run(self.prior_z_tuple, feed_dict={self.encoder_inputs: enc_inp,
+                                                         self.x_label: x_labels,})
         return result
 
-    def posterior_z_session(self, sess, enc_inp, dec_inp):
+    def posterior_z_session(self, sess, enc_inp, dec_tar, x_labels):
         result = sess.run(self.posterior_z_tuple,
-                          feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+                          feed_dict={self.encoder_inputs: enc_inp,
+                                      self.x_label: x_labels,
+                                      self.decoder_targets: dec_tar})
         return result
 
-    def train_decoder_session(self, sess, enc_inp, dec_inp, dec_tar):
+    def train_decoder_session(self, sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels):
         train_logits, train_sample_id = sess.run([self.train_logits, self.train_sample_id],
                                                  feed_dict={self.encoder_inputs: enc_inp,
-                                                 self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar})
+                                                 self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar,
+                                                 self.y_label: y_labels,
+                                                 self.x_label: x_labels})
         # print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
         # array_of = {}
         # array_gt_3 = {}
@@ -271,9 +301,11 @@ class VHRED(BaseModel):
         print("\n\n\n*******************************\n*******************************\n\n\n")
         return train_logits, train_sample_id
 
-    def infer_decoder_session(self, sess, enc_inp, x_labels):
+    def infer_decoder_session(self, sess, enc_inp, x_labels, y_labels):
         infer_decoder_ids = sess.run([self.infer_decoder_ids],
-                                     feed_dict={self.encoder_inputs: enc_inp, self.x_label: x_labels})
+                                     feed_dict={self.encoder_inputs: enc_inp, 
+                                                self.x_label: x_labels,
+                                                self.y_label: y_labels})
         return infer_decoder_ids
 
     def kl_loss_session(self, sess, enc_inp, dec_inp):
@@ -314,16 +346,16 @@ class VHRED(BaseModel):
         # # print('is: ', crossent[0])
         # print('Cross entropy matrix: ', sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}))
         # print(a, a, a, '\n\n\n\n\n')
-        fetches = [self.train_op, self.loss, self.nll_loss, self.kl_loss, self.global_step]
+        fetches = [self.train_op, self.loss, self.nll_loss, self.kl_loss, self.kl_weights, self.global_step]
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,
                      self.decoder_targets: dec_tar,
                      self.x_label: x_label,
                      self.y_label: y_label}
         # print("\nIN TRAIN SESSION, BEFORE LOSS AND UPDATE TRAINABLE VARS")
-        _, loss, nll_loss, kl_loss, global_step = sess.run(fetches, feed_dict)
+        _, loss, nll_loss, kl_loss, kl_weights, global_step = sess.run(fetches, feed_dict)
         # print("IN TRAIN SESSION, AFTER CALCULATING LOSS AND UPDATE TRAINABLE VARS")
-        return {'loss': loss, 'nll_loss': nll_loss, 'kl_loss': kl_loss, 'global_step': global_step}
+        return {'loss': loss, 'nll_loss': nll_loss, 'kl_loss': kl_loss, 'kl_weights': kl_weights, 'global_step': global_step}
 
     def test_session(self, sess, enc_inp, dec_inp, dec_tar, x_label, y_label):
         # fetches = [self.loss_test, self.nll_loss_test, self.kl_loss]
