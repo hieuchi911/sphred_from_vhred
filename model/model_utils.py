@@ -35,52 +35,14 @@ def draw_z_prior():
 	return tf.random.truncated_normal([args['batch_size'], args['latent_size']])
 
 def reparamter_trick(z_mean, z_logvar):
-	z = z_mean + tf.exp(0.5 * z_logvar) * draw_z_prior()
+	z = z_mean + z_logvar * draw_z_prior()
 	return z
 
 def kl_weights_fn(global_step):
 	return args['anneal_max'] * tf.sigmoid((10 / args['anneal_bias']) * (
-			tf.cast(global_step, dtype=tf.float32) - tf.constant(2 * args['anneal_bias']/ 2)))
+			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias']/ 2)))
 
-def kl_loss_fn(mean_1, log_var_1, mean_2, log_var_2):
-	return 0.5 * tf.reduce_sum(input_tensor=log_var_1 / log_var_2 +
-	                           (mean_2 - mean_1) / log_var_2 * (mean_2 - mean_1) - 1 +
-	                           tf.math.log(log_var_2) - tf.math.log(log_var_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
-
-# def nucleus_sampling():
-#     assert logits.dim() == 1  # batch size 1 for now - could be updated for more but the code would be less clear
-#     top_k = min(top_k, logits.size(-1))  # Safety check
-#     if top_k > 0:
-#         # Remove all tokens with a probability less than the last token of the top-k
-#         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-#         logits[indices_to_remove] = filter_value
-
-#     if top_p > 0.0:
-#         sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-#         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-#         # Remove tokens with cumulative probability above the threshold
-#         sorted_indices_to_remove = cumulative_probs > top_p
-#         # Shift the indices to the right to keep also the first token above the threshold
-#         sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-#         sorted_indices_to_remove[..., 0] = 0
-
-#         indices_to_remove = sorted_indices[sorted_indices_to_remove]
-#         logits[indices_to_remove] = filter_value
-#     return logits
-
-# # Here is how to use this function for top-p sampling
-# temperature = 1.0
-# top_k = 0
-# top_p = 0.9
-
-# # Get logits with a forward pass in our model (input is pre-defined)
-# logits = model(input)
-
-# # Keep only the last token predictions of the first batch item (batch size 1), apply a temperature coefficient and filter
-# logits = logits[0, -1, :] / temperature
-# filtered_logits = top_k_top_p_filtering(logits, top_k=top_k, top_p=top_p)
-
-# # Sample from the filtered distribution
-# probabilities = F.softmax(filtered_logits, dim=-1)
-# next_token = torch.multinomial(probabilities, 1)
+def kl_loss_fn(mean_1, std_1, mean_2, std_2):
+	return 0.5 * tf.reduce_sum(input_tensor=tf.math.square(std_1) / tf.math.square(std_2) +
+	                           tf.math.square(mean_2 - mean_1) / tf.math.square(std_2) - 1 +
+	                           2 * tf.math.log(std_2) - 2 * tf.math.log(std_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
