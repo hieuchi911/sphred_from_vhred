@@ -9,6 +9,11 @@ import datetime
 import math
 import numpy as np
 
+import time
+import pandas as pd
+from sklearn.decomposition import PCA
+import seaborn as sns
+
 
 class VHREDTrainer(object):
 
@@ -24,45 +29,64 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
-        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        # self.sample_test(VHRED_model, VHRED_dl, sess, True)
 
         sess.close()
 
-    def sample_test(self, model, dataLoader, sess):
-        for enc_inp, dec_inp, dec_tar, x_labels, y_labels in dataLoader.test_generator():
-            infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels)
-            
-            sample_previous_utterance_id = enc_inp[:3]
-            sample_infer_response_id = infer_decoder_ids[-1][:3]
-            sample_true_response_id = dec_tar[:3]
+    def sample_test(self, model, dataLoader, sess, inference=True):
+        if inference:
+            model.load(self.saver, sess, args['vhred_ckpt_dir'])
+            training_epoch_loss = sess.run(model.training_epoch_loss)
+            validation_epoch_loss = sess.run(model.validation_epoch_loss)
+            print("Last training loss: ", training_epoch_loss[-1])
+            print("Last test loss: ", validation_epoch_loss[-1])
+            plt.plot(training_epoch_loss)
+            plt.plot(validation_epoch_loss)
+            plt.legend(['training loss', 'validation loss'], loc='upper left')
+            plt.show()
+        for enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general in dataLoader.test_generator():
+            infer_decoder_ids_general = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels_general)
+            infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels)
+
+            sample_previous_utterance_id = enc_inp[:10]
+            sample_infer_response_id_general = infer_decoder_ids_general[-1][:10]
+            sample_infer_response_id = infer_decoder_ids[-1][:10]
+            sample_true_response_id = dec_tar[:10]
             for i in range(len(sample_infer_response_id)):
                 print('-----------------------------------')
                 print('previous utterances:')
                 print(ids_to_words(sample_previous_utterance_id[i], dataLoader.id_to_word, is_pre_utterance=True))
                 print('true response:')
                 print(ids_to_words(sample_true_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
-                print('infer response:')
+                print('infer general response:')
+                print(ids_to_words(sample_infer_response_id_general[i], dataLoader.id_to_word, is_pre_utterance=False))
+                print('infer detailed response:')
                 print(ids_to_words(sample_infer_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
                 print('-----------------------------------')
-            break
+            if not inference:
+                break  
 
     def train_model(self, model, dataLoader, sess, is_fresh_model=True):
         if not is_fresh_model:
             model.load(self.saver, sess, args['vhred_ckpt_dir'])
             # current_lr = sess.run(model.lr)
             # sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 5})
-        best_result_loss = 1000.0
+        best_result_loss = sess.run(model.best_test_loss)
         stop = False
-        best_loss = 1000
-        last_improvement = 0
+        best_loss = sess.run(model.best_loss)
+        last_improvement = sess.run(model.improve)
         loss_list = sess.run(model.loss_list)
+        nll_loss_list = sess.run(model.nll_loss_list)
+        kl_loss_list = sess.run(model.kl_loss_list)
+        kl_weight_list = sess.run(model.kl_weight_list)
         test_loss_list = sess.run(model.test_loss_list)
         training_epoch_loss = sess.run(model.training_epoch_loss)
         validation_epoch_loss = sess.run(model.validation_epoch_loss)
         model_epoch = sess.run(model.epoch)
         for epoch in range(args['n_epochs']):
-            if stop:
+            if last_improvement > 7:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
               break
@@ -76,96 +100,36 @@ class VHREDTrainer(object):
             loss = 0.0
             nll_loss = 0.0
             kl_loss = 0.0
+            kl_weight = 0.0
             loss_bf_update = 0.0
             kl_loss_bf_update = 0.0
             loss_aft_update = 0.0
             kl_loss_aft_update = 0.0
             count = 0
-            the_line = "------------------------------------------------------------"
+            X_prior = np.empty((0, args['latent_size']), float)
+            X_post = np.empty((0, args['latent_size']), float)
 
             for (enc_inp, dec_inp, dec_tar, x_labels, y_labels) in tqdm(dataLoader.train_generator(), desc="training"):
                 count += 1
-                # loss_bf_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
-                # kl_loss_bf_update += model.kl_loss_session(sess, enc_inp, dec_inp)
-                # if count % args['display_step'] == 0:
-                #   print(f"\n\n\n\n\n\n{the_line}\n{the_line}\nBEFORE UPDATING TRAINABLE VARIABLES\n{the_line}\n{the_line}\n\n\n\n\n\n")
-                #   print("For enc_inp: ", ids_to_words(enc_inp[0], dataLoader.id_to_word, is_pre_utterance=True))
-                #   print("The encoded hidden vectors for the 3 previous utterances above is: ", model.encoder_state_session(sess, enc_inp))
-                #   print("\nThe context 2 hidden vectors for these utterances is: ", model.context_state_session(sess, enc_inp))
-                #   print("The correct 4th response (dec_tar) is: ", ids_to_words(dec_tar[0], dataLoader.id_to_word, is_pre_utterance=False))
-                #   print("The posterior latent z deducted from encoder RNN output of dec_tar and context is: ", model.posterior_z_session(sess, enc_inp, dec_inp, dec_tar))
-                #   train_logits, train_sample_ids = model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
-                #   print("So the decoded logits (train_logits from TRAIN DECODER SESSION) is: ", train_logits)
-                #   print("-----> These logits correspond to following ids (train_sample_id from TRAIN DECODER SESSION, will be compared with dec_tar):\n", train_sample_ids)
-                #   print("Compare these above ids with true ids: (dec_tar)\n", dec_tar)
-                #   print("Specifically compare: first train_sample_ids: \n\t\t", train_sample_ids[0], "\n\t\t and first dec_tar:\n\t\t", dec_tar[0])
-                  
-                #   print("\n\n==========\n\nTherefore, loss between decoded output and decoder target dec_tar is: ", loss_bf_update/count)
-                #   print("Also, KL difference between posterior and prior distribution is: ", kl_loss_bf_update/count)
-                #   print("\n\n==========\n\n")
-                # print("\nENTER OF TRAIN SESSION\n")
                 
                 train_out = model.train_session(sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels)
-                
-                # print("\nOUT OF TRAIN SESSION\n")
-                # loss_aft_update += model.loss_session(sess, enc_inp, dec_inp, dec_tar)
-                # kl_loss_aft_update += model.kl_loss_session(sess, enc_inp, dec_inp)
-                # if count % args['display_step'] == 0:
-                #   if count < 25:
-                #     print("dec_inp: \n", dec_inp)
-                #   print(f"\n\n\n\n\n\n{the_line}\n{the_line}\nAFTER UPDATING TRAINABLE VARIABLES\n{the_line}\n{the_line}\n\n\n\n\n\n")
-                #   print("For enc_inp: ", ids_to_words(enc_inp[0], dataLoader.id_to_word, is_pre_utterance=True))
-                #   print("The encoded hidden vectors for the 3 previous utterances above is: ", model.encoder_state_session(sess, enc_inp))
-                #   print("\nThe context 2 hidden vectors for these utterances is: ", model.context_state_session(sess, enc_inp))
-                #   print("The correct 4th response (dec_tar) is: ", ids_to_words(dec_tar[0], dataLoader.id_to_word, is_pre_utterance=False))
-                #   print("The posterior latent z deducted from encoder RNN output of dec_tar and context is: ", model.posterior_z_session(sess, enc_inp, dec_inp, dec_tar))
-                #   train_logits, train_sample_ids = model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
-                #   print("So the decoded logits (train_logits from TRAIN DECODER SESSION) is: ", train_logits)
-                #   print("-----> These logits correspond to following ids (train_sample_id from TRAIN DECODER SESSION, will be compared with dec_tar):\n", train_sample_ids)
-                #   print("Compare previous ids with true ids: (dec_tar)\n", dec_tar)
-                #   print("Specifically compare: first train_sample_ids: \n\t\t", train_sample_ids[0], "\n\t\t and first dec_tar:\n\t\t", dec_tar[0])
-                #   print("\n\n==========\n\nTherefore, loss between decoded output and decoder target dec_tar is: ", loss_aft_update/count)
-                #   print("Also, KL difference between posterior and prior distribution is: ", kl_loss_aft_update/count)
-                #   print("\n\n==========\n\n")
-                
-              
                 
                 global_step = train_out['global_step']
                 loss += train_out['loss']
                 nll_loss += train_out['nll_loss']
                 kl_loss += train_out['kl_loss']
+                kl_weight += train_out['kl_weights']
                 
-                # if last_improvement > 30 and last_improvement < 60:
-                #     current_lr = sess.run(model.lr)
-                #     sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 1.25})
-                #     print("\n\n******Updated learning rate by 1.25 from ", current_lr, " to ",current_lr*1.25, "******\n\n")
-                # elif last_improvement >= 60 and last_improvement < 80:
-                #     # stop = True
-                #     bar = '---------------------------------------------------'
-                #     print("\n\n\n", bar, "\n", bar, "\n", bar, "\n", "stop is now True, last_improvement is: ", last_improvement, "\n", bar, "\n", bar, "\n", bar, "\n\n\n")
-                #     # break
-                # elif last_improvement >= 80 and last_improvement < 95:
-                #     current_lr = sess.run(model.lr)
-                #     sess.run(model.update_lr_op, feed_dict={model.new_lr: current_lr * 0.8})
-                #     print("\n\n******Updated learning rate by 0.8 from ", current_lr, " to ",current_lr*0.8, "******\n\n")
-
-                # This if block below should be placed outsite of the display step, since it
-                # should verify on each train session performed on a data point
                 current_loss = loss / count
+                current_nll_loss = nll_loss / count
+                current_kl_loss = kl_loss / count
+                current_kl_weight = kl_weight / count
                 loss_list = np.append(loss_list, current_loss)
-                if current_loss < best_loss:
-                  best_loss = current_loss
-                  last_improvement = 0
-                  stop = False
-                else:
-                  last_improvement += 1
-                #   print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
+                nll_loss_list = np.append(nll_loss_list, current_nll_loss)
+                kl_loss_list = np.append(kl_loss_list, current_kl_loss)
+                kl_weight_list = np.append(kl_weight_list, current_kl_weight)
+                
                 if count % args['display_step'] == 0:
-                    # if current_loss < best_loss:
-                    #     print("\n\nImproved from", best_loss, "to ", current_loss, "\n\n")
-                    # else:
-                    #     print("\n\nNo improvement, best loss is: ", best_loss, "last improvement: ", last_improvement ,"\n\n")
-                    # model.train_decoder_session(sess, enc_inp, dec_inp, dec_tar)
                     current_loss = loss / count
                     current_nll_loss = nll_loss / count
                     current_kl_loss = kl_loss / count
@@ -177,15 +141,14 @@ class VHREDTrainer(object):
                                                                                                        current_nll_loss,
                                                                                                        current_kl_loss,
                                                                                                        current_perplexity))
-                    # length_of_enc_state_list, states = model.encoder_state_session(sess, enc_inp)
-                    # print("states: ", np.shape(states))
-                    # print("length_of_enc_state_list: ", np.shape(length_of_enc_state_list))
+                    prior_z = model.prior_z_session(sess, enc_inp, x_labels)
+                    post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
+                    X_prior = np.concatenate((X_prior, prior_z[0]))
+                    X_post = np.concatenate((X_post, post_z[0]))
             # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
             # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
             training_epoch_loss = np.append(training_epoch_loss, np.mean(loss_list))
 
-
-            print(count)
             loss = loss / count
             nll_loss = nll_loss / count
             kl_loss = kl_loss / count
@@ -196,17 +159,62 @@ class VHREDTrainer(object):
                                                                                            nll_loss,
                                                                                            kl_loss,
                                                                                            perplexity))
+            X = np.concatenate((X_prior, X_post))
+            feat_cols = ['latent'+str(i) for i in range(X.shape[1])]
+            df = pd.DataFrame(X, columns=feat_cols)
+            label = np.concatenate((np.full([X_prior.shape[0]], 'prior'), np.full([X_post.shape[0]], 'post')))
+            df['label'] = label
+
+            np.random.seed(42)
+            rndperm = np.random.permutation(df.shape[0])
+
+            print('Size of the dataframe: {}'.format(df.shape)) # Expect: test_size, 64
+            pca = PCA(n_components=3)
+            pca_result = pca.fit_transform(df[feat_cols].values)
+            df['pca-one'] = pca_result[:,0]
+            df['pca-two'] = pca_result[:,1] 
+            df['pca-three'] = pca_result[:,2]
+            print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
+
+            sns.scatterplot(
+              x="pca-one", y="pca-two",
+              hue="label",
+              palette=sns.color_palette("hls", 2),
+              data=df.loc[rndperm,:],
+              legend="full",
+              alpha=0.3
+            )
+            plt.show()
 
             print("Loss plot per iteration is: ")
             plt.plot(loss_list)
+            plt.legend(['loss'], loc='upper right')
             plt.show()
+
+            print("Negative log likelihood (nll) loss vs KL loss plot per iteration is: ")
+            plt.plot(nll_loss_list)
+            plt.plot(kl_loss_list)
+            plt.legend(['nll loss', 'kl loss'], loc='upper right')
+            plt.show()
+
+            print("KL loss plot vs KL loss weight per iteration is: ")
+            plt.plot(kl_loss_list)
+            plt.plot(kl_weight_list)
+            plt.legend(['kl loss', 'kl_weight'], loc='upper right')
+            plt.show()
+
+            if loss < best_loss:
+              best_loss = loss
+              last_improvement = 0
+            else:
+              last_improvement += 1
             
             test_loss = 0.0
             test_nll_loss = 0.0
             test_kl_loss = 0.0
             test_count = 0
             # test_count = 1
-            for (enc_inp, dec_inp, dec_tar, x_labels, y_labels) in tqdm(dataLoader.test_generator(), desc="testing"):
+            for (enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general) in tqdm(dataLoader.test_generator(), desc="testing"):
                 test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels)
                 test_loss += test_out['loss_test']
                 test_nll_loss += test_out['nll_loss_test']
@@ -229,21 +237,27 @@ class VHREDTrainer(object):
             print("Training loss vs. Testing loss per epoch is: ")
             plt.plot(training_epoch_loss)
             plt.plot( validation_epoch_loss)
-            plt.legend(['training loss', 'validation loss'], loc='upper left')
+            plt.legend(['training loss', 'validation loss'], loc='upper right')
             plt.show()
 
             print()
 
             print('# sample test')
-            self.sample_test(model, dataLoader, sess)
+            self.sample_test(model, dataLoader, sess, inference=False)
             
             sess.run(model.update_epoch_op, feed_dict={model.new_epoch: model_epoch})
+            sess.run(model.update_best_loss_op, feed_dict={model.new_best_loss: best_loss})
+            sess.run(model.update_improve_op, feed_dict={model.new_improve: last_improvement})
+
+            
             sess.run(model.update_loss_list_op, feed_dict={model.new_loss_list: loss_list})
+            sess.run(model.update_nll_loss_list_op, feed_dict={model.new_nll_loss_list: nll_loss_list})
+            sess.run(model.update_kl_loss_list_op, feed_dict={model.new_kl_loss_list: kl_loss_list})
+            sess.run(model.update_kl_weight_list_op, feed_dict={model.new_kl_weight_list: kl_weight_list})
             sess.run(model.update_test_loss_list_op, feed_dict={model.new_test_loss_list: test_loss_list})
             sess.run(model.update_training_epoch_loss_list_op, feed_dict={model.new_training_epoch_loss_list: training_epoch_loss})
             sess.run(model.update_validation_epoch_loss_list_op, feed_dict={model.new_validation_epoch_loss_list: validation_epoch_loss})
             
-            model.save(self.saver, sess, args['vhred_ckpt_dir'])
             if test_loss < best_result_loss:
                 print("Save model since test_loss", test_loss, " < best_result_loss", best_result_loss)
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
@@ -254,13 +268,16 @@ class VHREDTrainer(object):
                     print("\n\n******Decreased learning rate by 0.95 from ", current_lr, " to ",current_lr*0.95, "******\n\n")
                 best_result_loss = test_loss
             toc = datetime.datetime.now()
+            sess.run(model.update_best_test_loss_op, feed_dict={model.new_best_test_loss: best_result_loss})
+            if last_improvement <= 7:
+                model.save(self.saver, sess, args['vhred_ckpt_dir'])
             print(" # Epoch finished in {}".format(toc - tic))
             model_epoch += 1
-        print("Loss plot per iteration is: ")
-        plt.plot(loss_list)
-        plt.show()
-        print("Training loss vs. Testing loss per epoch is: ")
-        plt.plot(training_epoch_loss)
-        plt.plot(validation_epoch_loss)
-        plt.legend(['training loss', 'validation loss'], loc='upper left')
-        plt.show()
+        # print("Loss plot per iteration is: ")
+        # plt.plot(loss_list)
+        # plt.show()
+        # print("Training loss vs. Testing loss per epoch is: ")
+        # plt.plot(training_epoch_loss)
+        # plt.plot(validation_epoch_loss)
+        # plt.legend(['training loss', 'validation loss'], loc='upper left')
+        # plt.show()

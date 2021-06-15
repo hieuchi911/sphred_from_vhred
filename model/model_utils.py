@@ -32,17 +32,17 @@ def encoder(embedded_inputs, lengths, hparams, keep_prob):
 	# states: ([batch_size, hidden_dim]) * num_layer
 
 def draw_z_prior():
-	return tf.random.truncated_normal([args['batch_size'], args['latent_size']])
+	return tf.random.normal([args['batch_size'], args['latent_size']])
 
-def reparamter_trick(z_mean, z_logvar):
-	z = z_mean + tf.exp(0.5 * z_logvar) * draw_z_prior()
+def reparamter_trick(z_mean, z_std):
+	z = z_mean + z_std * draw_z_prior()
 	return z
 
 def kl_weights_fn(global_step):
-	return args['anneal_max'] * tf.sigmoid((10 / args['anneal_bias']) * (
-			tf.cast(global_step, dtype=tf.float32) - tf.constant(2 * args['anneal_bias']/ 2)))
+	return args['anneal_max'] * tf.sigmoid((150 / args['anneal_bias']) * (
+			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias']/ 2)))
 
-def kl_loss_fn(mean_1, log_var_1, mean_2, log_var_2):
-	return 0.5 * tf.reduce_sum(input_tensor=log_var_1 / log_var_2 +
-	                           (mean_2 - mean_1) / log_var_2 * (mean_2 - mean_1) - 1 +
-	                           tf.math.log(log_var_2) - tf.math.log(log_var_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
+def kl_loss_fn(mean_1, std_1, mean_2, std_2):
+	return 0.5 * tf.reduce_sum(input_tensor=tf.math.square(std_1) / tf.math.square(std_2) +
+                             tf.math.square(mean_2 - mean_1) / tf.math.square(std_2) - 1 +
+                             2 * tf.math.log(std_2) - 2 * tf.math.log(std_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
