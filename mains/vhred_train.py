@@ -29,9 +29,9 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
         # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
-        self.sample_test(VHRED_model, VHRED_dl, sess, True)
+        # self.sample_test(VHRED_model, VHRED_dl, sess, True)
 
         sess.close()
 
@@ -70,8 +70,8 @@ class VHREDTrainer(object):
                 print(ids_to_words(sample_infer_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
                 print('-----------------------------------')
             if inference:
-                prior_z = model.prior_z_session(sess, enc_inp)
-                post_z = model.posterior_z_session(sess, enc_inp, dec_tar)
+                prior_z = model.prior_z_session(sess, enc_inp, x_labels)
+                post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
                 X_prior = np.concatenate((X_prior, prior_z[0]))
                 X_post = np.concatenate((X_post, post_z[0]))
             else:

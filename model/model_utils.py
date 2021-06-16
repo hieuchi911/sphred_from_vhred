@@ -32,14 +32,14 @@ def encoder(embedded_inputs, lengths, hparams, keep_prob):
 	# states: ([batch_size, hidden_dim]) * num_layer
 
 def draw_z_prior():
-	return tf.random.truncated_normal([args['batch_size'], args['latent_size']])
+	return tf.random.normal([args['batch_size'], args['latent_size']])
 
 def reparamter_trick(z_mean, z_std):
 	z = z_mean + z_std * draw_z_prior()
 	return z
 
 def kl_weights_fn(global_step):
-	return args['anneal_max'] * tf.sigmoid((20 / args['anneal_bias']) * (
+	return args['anneal_max'] * tf.sigmoid((150 / args['anneal_bias']) * (
 			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias']/ 2)))
 
 def kl_loss_fn(mean_1, std_1, mean_2, std_2):
