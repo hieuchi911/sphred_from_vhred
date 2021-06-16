@@ -20,7 +20,7 @@ args['display_step']=50
 
 args['vocab_size']=250000
 args['num_sampled']=1000
-args['word_dropout_rate']=0.9
+args['word_dropout_rate']=0.25
 
 args['max_len']=15
 args['embed_dims']=100
@@ -29,11 +29,11 @@ args['rnn_size']=64
 args['beam_width']=5
 args['clip_norm']=5.0
 
-args['vhred_ckpt_dir']='model/ckpt/vhred'
+args['vhred_ckpt_dir']='model/ckpt/vhred-anneal'
 args['vae_display_step']=100
 args['latent_size']=64
 args['anneal_max']=0.9
-args['anneal_bias']=6000
+args['anneal_bias']=30000
 
 args['discriminator_dropout_rate']=0.2
 args['n_filters']=128

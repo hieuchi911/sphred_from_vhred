@@ -142,33 +142,33 @@ class VHRED(BaseModel):
             # 2 layers neural network: prior_dense_1 and prior_dense_2
             self.prior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                            activation=tf.nn.tanh,
-                                                           kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.05),
+                                                           kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                               0.0, 0.01),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_dense_1')
             self.prior_dense_2 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                            activation=tf.nn.tanh,
-                                                           kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.05),
+                                                           kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                               0.0, 0.01),
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_dense_2')
             self.prior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                        kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                            0.0, 0.05),
-                                                        bias_initializer=tf.compat.v1.zeros_initializer,
+                                                        # kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                        #     0.0, 0.01),
+                                                        # bias_initializer=tf.compat.v1.zeros_initializer,
                                                         name='prior_mean')
             self.prior_log_var = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                           kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                               0.0, 0.05),
-                                                           activation=tf.nn.softplus,
-                                                           bias_initializer=tf.compat.v1.zeros_initializer,
+                                                          #  kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                          #      0.0, 0.01),
+                                                          #  activation=tf.nn.softplus,
+                                                          #  bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_log_var')
             self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 prior_dense_1_out = self.prior_dense_1(self.context_state[i])
                 prior_dense_2_out = self.prior_dense_2(prior_dense_1_out)
                 self.prior_mean_value = self.prior_mean(prior_dense_2_out)
-                self.prior_log_var_value = self.prior_log_var(prior_dense_2_out)
+                self.prior_log_var_value = tf.nn.softplus(self.prior_log_var(prior_dense_2_out))
                 prior_z = reparamter_trick(self.prior_mean_value, self.prior_log_var_value)  # (batch_size, latent_size)
                 self.prior_z_tuple = self.prior_z_tuple + (prior_z,)
 
@@ -179,27 +179,34 @@ class VHRED(BaseModel):
             # 2 layers neural network
             self.posterior_dense_1 = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                                activation=tf.nn.tanh,
-                                                               kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                   0.0, 0.05),
+                                                               kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                                   0.0, 0.01),
                                                                bias_initializer=tf.compat.v1.zeros_initializer,
                                                                name='posterior_dense_1')
+            self.posterior_dense_2 = tf.compat.v1.layers.Dense(units=args['latent_size'],
+                                                               activation=tf.nn.tanh,
+                                                               kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                                   0.0, 0.01),
+                                                               bias_initializer=tf.compat.v1.zeros_initializer,
+                                                               name='posterior_dense_2')
             self.posterior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                            kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                0.0, 0.05),
-                                                            bias_initializer=tf.compat.v1.zeros_initializer,
+                                                            # kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                            #     0.0, 0.01),
+                                                            # bias_initializer=tf.compat.v1.zeros_initializer,
                                                             name='posterior_mean')
             self.posterior_log_var = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                               kernel_initializer=tf.compat.v1.truncated_normal_initializer(
-                                                                   0.0, 0.05),
-                                                               activation=tf.nn.softplus,
-                                                               bias_initializer=tf.compat.v1.zeros_initializer,
+                                                              #  kernel_initializer=tf.compat.v1.random_normal_initializer(
+                                                              #      0.0, 0.01),
+                                                              #  activation=tf.nn.softplus,
+                                                              #  bias_initializer=tf.compat.v1.zeros_initializer,
                                                                name='posterior_log_var')
             self.posterior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
                 posterior_dense_1_out = self.posterior_dense_1(
                     self.context_with_current_step[i])  # (batch_size, latent_dim)
-                self.posterior_mean_value = self.posterior_mean(posterior_dense_1_out)
-                self.posterior_log_var_value = self.posterior_log_var(posterior_dense_1_out)
+                posterior_dense_2_out = self.posterior_dense_2(posterior_dense_1_out)
+                self.posterior_mean_value = self.posterior_mean(posterior_dense_2_out)
+                self.posterior_log_var_value = tf.nn.softplus(self.posterior_log_var(posterior_dense_2_out))
                 posterior_z = reparamter_trick(self.posterior_mean_value, self.posterior_log_var_value)
                 self.posterior_z_tuple = self.posterior_z_tuple + (posterior_z,)
 
@@ -216,9 +223,8 @@ class VHRED(BaseModel):
         self.nll_loss = tf.reduce_mean(input_tensor=tfa.seq2seq.sequence_loss(logits=self.train_logits,
                                                                               targets=self.decoder_targets,
                                                                               weights=self.decoder_weights,
-                                                                              average_across_timesteps=True,
-                                                                              average_across_batch=True,
-                                                                              sum_over_timesteps=False))
+                                                                              average_across_timesteps=False,
+                                                                              average_across_batch=True))
         self.kl_weights = kl_weights_fn(self.global_step)
         self.kl_loss = kl_loss_fn(mean_1=self.posterior_mean_value,
                                   std_1=self.posterior_log_var_value,

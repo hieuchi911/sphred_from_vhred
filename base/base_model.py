@@ -9,7 +9,7 @@ class BaseModel(object):
 
     def save(self, saver, sess, ckpt_dir):
         print("Saving model...")
-        saver.save(sess, ckpt_dir, global_step=99)
+        saver.save(sess, ckpt_dir, global_step=44)
         print("Model saved")
 
     def load(self, saver, sess, ckpt_dir):

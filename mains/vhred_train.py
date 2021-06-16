@@ -30,8 +30,8 @@ class VHREDTrainer(object):
         # on these variables (updating, backpropagating etc.)
 
         # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
-        self.sample_test(VHRED_model, VHRED_dl, sess)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        # self.sample_test(VHRED_model, VHRED_dl, sess)
   
         sess.close()
 
@@ -159,7 +159,7 @@ class VHREDTrainer(object):
                 loss_list = np.append(loss_list, current_loss)
                 nll_loss_list = np.append(nll_loss_list, current_nll_loss)
                 kl_loss_list = np.append(kl_loss_list, current_kl_loss)
-                kl_weight_list = np.append(kl_weight_list, train_out['kl_weights'])
+                kl_weight_list = np.append(kl_weight_list, current_kl_weight)
 
                 if count % args['display_step'] == 0:
                     current_loss = loss / count
