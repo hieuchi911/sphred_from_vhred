@@ -161,7 +161,7 @@ class VHRED(BaseModel):
                                                           #      0.0, 0.01),
                                                           #  bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_std')
-            self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
+            self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size)) = (2, 1, 64)
             for i in range(args['num_layer']):
                 prior_dense_1_out = self.prior_dense_1(self.context_state[i])
                 prior_dense_2_out = self.prior_dense_2(prior_dense_1_out)
