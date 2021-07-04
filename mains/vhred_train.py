@@ -34,6 +34,41 @@ class VHREDTrainer(object):
         # self.sample_test(VHRED_model, VHRED_dl, sess)
   
         sess.close()
+    
+    def draw_scales(self, dmode, list1, name1, list2, name2):
+        # More versatile wrapper
+        fig, host = plt.subplots(figsize=(6,4)) # (width, height) in inches
+
+        par1 = host.twinx()
+            
+        host.set_xlim(0, len(list1)-1)
+        host.set_ylim(0, max(list1) + 0.3*max(list1))
+        par1.set_ylim(0, max(list2) + 0.3*max(list2))
+            
+        host.set_xlabel('iteration')
+        host.set_ylabel(name1 + "(" + dmode + " average)")
+        par1.set_ylabel(name2 + "(" + dmode + " average)")
+
+        color1 = plt.cm.viridis(0)
+        color2 = plt.cm.viridis(0.5)
+        color3 = plt.cm.viridis(.9)
+
+        p1, = host.plot(range(len(list1)), list1, color=color1, label=name1)
+        p2, = par1.plot(range(len(list2)), list2, color=color2, label=name2)
+
+        lns = [p1, p2]
+        host.legend(handles=lns, loc='best')
+
+        host.yaxis.label.set_color(p1.get_color())
+        par1.yaxis.label.set_color(p2.get_color())
+
+        # Adjust spacings w.r.t. figsize
+        fig.tight_layout()
+        plt.show()
+
+        # Best for professional typesetting, e.g. LaTeX
+        # plt.savefig("pyplot_multiple_y-axis.pdf")
+        # For raster graphics use the dpi argument. E.g. '[...].png", dpi=200)'
 
     def sample_test(self, model, dataLoader, sess, inference=True):
         if inference:
@@ -224,16 +259,18 @@ class VHREDTrainer(object):
             plt.show()
 
             print("Negative log likelihood (nll) loss vs KL loss plot per iteration is: ")
-            plt.plot(nll_loss_list)
-            plt.plot(kl_loss_list)
-            plt.legend(['nll loss', 'kl loss'], loc='upper right')
-            plt.show()
+            self.draw_scales('iteration', nll_loss_list, 'NLL', kl_loss_list, 'KL')
+            # plt.plot(nll_loss_list)
+            # plt.plot(kl_loss_list)
+            # plt.legend(['nll loss', 'kl loss'], loc='upper right')
+            # plt.show()
 
             print("KL loss plot vs KL loss weight per iteration is: ")
-            plt.plot(kl_loss_list)
-            plt.plot(kl_weight_list)
-            plt.legend(['kl loss', 'kl_weight'], loc='upper right')
-            plt.show()
+            self.draw_scales('iteration', kl_loss_list, 'KL', kl_weight_list, 'KL weight')
+            # plt.plot(kl_loss_list)
+            # plt.plot(kl_weight_list)
+            # plt.legend(['kl loss', 'kl_weight'], loc='upper right')
+            # plt.show()
             
             if loss < best_loss:
               best_loss = loss

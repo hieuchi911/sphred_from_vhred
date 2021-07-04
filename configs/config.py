@@ -20,7 +20,7 @@ args['display_step']=50
 
 args['vocab_size']=250000
 args['num_sampled']=1000
-args['word_dropout_rate']=0.25
+args['word_dropout_rate']=0.7
 
 args['max_len']=15
 args['embed_dims']=100

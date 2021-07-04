@@ -31,11 +31,11 @@ def encoder(embedded_inputs, lengths, hparams, keep_prob):
 	# outputs: [batch_size, enc_max_len, hidden_dim]
 	# states: ([batch_size, hidden_dim]) * num_layer
 
-def draw_z_prior():
-	return tf.random.normal([args['batch_size'], args['latent_size']])
+def draw_z_prior(batch_size):
+	return tf.random.normal([batch_size, args['latent_size']])
 
 def reparamter_trick(z_mean, z_logvar):
-	z = z_mean + z_logvar * draw_z_prior()
+	z = z_mean + z_logvar * draw_z_prior(tf.shape(z_mean)[0])
 	return z
 
 def kl_weights_fn(global_step):

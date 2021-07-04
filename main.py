@@ -1,5 +1,11 @@
-from mains import VHREDTrainer
+from mains import VHREDTrainer, VHREDTester
+import tensorflow as tf
 
 if __name__ == '__main__':
-    trainer = VHREDTrainer()
-    trainer.main()
+    train = False
+    if train:
+        trainer = VHREDTrainer()
+        trainer.main()
+    else:
+        tester = VHREDTester()
+        tester.main()
