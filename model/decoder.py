@@ -219,7 +219,7 @@ class Decoder(BaseModel):
                     maximum_iterations=args['max_len'] + 1,
                     decoder_init_input=self.embedding,
                     decoder_init_kwargs={
-                        'start_tokens': tf.tile(tf.constant([args['SOS_ID']], dtype=tf.int32), [args['batch_size']]),
+                        'start_tokens': tf.tile(tf.constant([args['SOS_ID']], dtype=tf.int32), [tf.shape(context_with_latent)[1]]),
                         'end_token': args['EOS_ID'],
                         'initial_state': init_state_tuple
                     })
