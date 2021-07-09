@@ -1,6 +1,7 @@
 from configs import args
 from model import Encoder, VHRED
 from data import VHREDDataLoader, ids_to_words
+from .mains_helper import embedding_eval
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -70,6 +71,7 @@ class VHREDTrainer(object):
         # plt.savefig("pyplot_multiple_y-axis.pdf")
         # For raster graphics use the dpi argument. E.g. '[...].png", dpi=200)'
 
+
     def sample_test(self, model, dataLoader, sess, inference=True):
         if inference:
             model.load(self.saver, sess, args['vhred_ckpt_dir'])
@@ -93,14 +95,19 @@ class VHREDTrainer(object):
             plt.plot(validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
+        
+        all_infer_ids = np.empty((0, args["max_len"]))
+        all_target_ids = np.empty((0, args["max_len"]))
+        count = 0
+
         for enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general in dataLoader.test_generator():
             infer_decoder_ids_general = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels_general)
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels)
 
-            sample_previous_utterance_id = enc_inp[:10]
-            sample_infer_response_id_general = infer_decoder_ids_general[-1][:10]
-            sample_infer_response_id = infer_decoder_ids[-1][:10]
-            sample_true_response_id = dec_tar[:10]
+            sample_previous_utterance_id = enc_inp[:1]
+            sample_infer_response_id_general = infer_decoder_ids_general[:1]
+            sample_infer_response_id = infer_decoder_ids[:1]
+            sample_true_response_id = dec_tar[:1]
 
             X_prior = np.empty((0, args['latent_size']), float)
             X_post = np.empty((0, args['latent_size']), float)
@@ -121,9 +128,24 @@ class VHREDTrainer(object):
                 post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
                 X_prior = np.concatenate((X_prior, prior_z[0]))
                 X_post = np.concatenate((X_post, post_z[0]))
+                print(np.shape(infer_decoder_ids))
+                print(infer_decoder_ids, "\n\n")
+                print(np.shape(dec_tar))
+                print(dec_tar[0:2], "\n\n")
+                all_target_ids = np.concatenate((all_target_ids, dec_tar))
+                all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+                count += 1
+                if count == 2:
+                    break
             else:
                 break
         if inference:
+            # print(all_infer_ids)
+            # print(all_target_ids)
+
+            average, greedy, extreme = embedding_eval(np.array(all_infer_ids, dtype=int), np.array(all_target_ids, dtype=int), dataLoader.embedding_matrix)
+            print('Average {} | Greedy {} | Extreme {}\n\n'.format(average, greedy, extreme))
+            
             X = np.concatenate((X_prior, X_post))
             feat_cols = ['latent'+str(i) for i in range(X.shape[1])]
             df = pd.DataFrame(X, columns=feat_cols)
@@ -228,8 +250,6 @@ class VHREDTrainer(object):
                     post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
                     X_prior = np.concatenate((X_prior, prior_z[0]))
                     X_post = np.concatenate((X_post, post_z[0]))
-            # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
-            # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
             training_epoch_loss = np.append(training_epoch_loss, np.mean(loss_list))
 
             loss = loss / count
@@ -304,8 +324,6 @@ class VHREDTrainer(object):
                 test_kl_loss += test_out['kl_loss']
                 test_count += 1
                 test_loss_list = np.append(test_loss_list, test_out['loss_test'])
-                if stop and epoch < 2:
-                    break
             test_loss /= test_count
             test_nll_loss /= test_count
             test_kl_loss /= test_count

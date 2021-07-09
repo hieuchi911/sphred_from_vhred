@@ -46,3 +46,5 @@ def kl_loss_fn(mean_1, std_1, mean_2, std_2):
 	return 0.5 * tf.reduce_sum(input_tensor=tf.math.square(std_1) / tf.math.square(std_2) +
 	                           tf.math.square(mean_2 - mean_1) / tf.math.square(std_2) - 1 +
 	                           2 * tf.math.log(std_2) - 2 * tf.math.log(std_1)) / tf.cast(args['batch_size'], dtype=tf.float32)
+
+

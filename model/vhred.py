@@ -227,6 +227,7 @@ class VHRED(BaseModel):
         self.kl_weights = kl_weights_fn(self.global_step)
         self.kl_loss = kl_loss_fn(mean_1=self.posterior_mean_value, std_1=self.posterior_std_value, mean_2=self.prior_mean_value, std_2=self.prior_std_value)
         self.loss = self.nll_loss + self.kl_weights * self.kl_loss
+        # self.average, self.greedy, self.extrema = embedding_eval(self.train_sample_id, self.decoder_weights, self.decoder_targets, self.dataLoader.embedding_matrix)
         optimizer = tf.compat.v1.train.AdamOptimizer(self.lr)
         self.tvars = tf.compat.v1.trainable_variables()  # trainable_variables
         grads = tf.gradients(ys=self.loss, xs=self.tvars)
@@ -292,7 +293,7 @@ class VHRED(BaseModel):
         return train_logits, train_sample_id
 
     def infer_decoder_session(self, sess, enc_inp, x_labels, y_labels):
-        infer_decoder_ids = sess.run([self.infer_decoder_ids],
+        infer_decoder_ids = sess.run(self.infer_decoder_ids,
                                      feed_dict={self.encoder_inputs: enc_inp, 
                                                 self.x_label: x_labels,
                                                 self.y_label: y_labels})
@@ -331,3 +332,4 @@ class VHRED(BaseModel):
                      self.y_label: y_label}
         loss_test, nll_loss_test, kl_loss = sess.run(fetches, feed_dict)
         return {'loss_test': loss_test, 'nll_loss_test': nll_loss_test, 'kl_loss': kl_loss}
+        
