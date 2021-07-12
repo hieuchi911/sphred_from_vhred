@@ -2,6 +2,7 @@ from configs import args
 from model import Encoder, VHRED
 from data import VHREDDataLoader, ids_to_words
 import matplotlib.pyplot as plt
+from .mains_helper import embedding_eval
 
 from tqdm import tqdm
 import tensorflow as tf
@@ -13,7 +14,7 @@ import time
 import pandas as pd
 from sklearn.decomposition import PCA
 import seaborn as sns
-
+import json
 
 class VHREDTrainer(object):
 
@@ -30,8 +31,8 @@ class VHREDTrainer(object):
         # on these variables (updating, backpropagating etc.)
 
         # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
-        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
-        # self.sample_test(VHRED_model, VHRED_dl, sess)
+        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
+        self.sample_test(VHRED_model, VHRED_dl, sess)
   
         sess.close()
     
@@ -81,11 +82,16 @@ class VHREDTrainer(object):
             plt.plot(validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
+        
+        all_infer_ids = np.empty((0, args["max_len"]))
+        all_target_ids = np.empty((0, args["max_len"]))
+        count = 0
+
         for enc_inp, dec_inp, dec_tar in dataLoader.test_generator():
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp)
             
             sample_previous_utterance_id = enc_inp[:10]
-            sample_infer_response_id = infer_decoder_ids[-1][:10]
+            sample_infer_response_id = infer_decoder_ids[:10]
             sample_true_response_id = dec_tar[:10]
             
             X_prior = np.empty((0, args['latent_size']), float)
@@ -105,9 +111,27 @@ class VHREDTrainer(object):
                 post_z = model.posterior_z_session(sess, enc_inp, dec_tar)
                 X_prior = np.concatenate((X_prior, prior_z[0]))
                 X_post = np.concatenate((X_post, post_z[0]))
+                
+                try:
+                    infer_decoder_ids = np.array([np.pad(m, (0, args["max_len"] - len(m))) for m in infer_decoder_ids])
+                    all_target_ids = np.concatenate((all_target_ids, dec_tar))
+                    all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+                except:
+                    print(np.shape(infer_decoder_ids))
+                    print(infer_decoder_ids, "\n\n")
+                    print(np.shape(dec_tar))
+                    print(dec_tar[0:2], "\n\n")
+                
             else:
                 break
         if inference:
+
+            prediction_ids = np.array(all_infer_ids, dtype=int)
+            target_ids = np.array(all_target_ids, dtype=int)
+            
+            average, greedy, extreme = embedding_eval(prediction_ids, target_ids, dataLoader.embedding_matrix, dataLoader.id_to_word)
+            print('Average {} | Greedy {} | Extreme {}\n\n'.format(average, greedy, extreme))
+
             X = np.concatenate((X_prior, X_post))
             feat_cols = ['latent'+str(i) for i in range(X.shape[1])]
             df = pd.DataFrame(X, columns=feat_cols)

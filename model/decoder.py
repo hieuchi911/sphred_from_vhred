@@ -71,13 +71,11 @@ class Decoder(BaseModel):
                     cell=self.decoder_cell,
                     beam_width=args['beam_width'],
                     output_layer=self.output_dense)
-                # samp = tfa.seq2seq.sampler.SampleEmbeddingSampler()
-                # infer_decoder = tfa.seq2seq.BasicDecoder(cell=self.decoder_cell, sampler=samp,
-                                                        #  output_layer=self.output_dense)
+                
                 infer_output, _, _ = tfa.seq2seq.dynamic_decode(
                     decoder=infer_decoder,
                     swap_memory=True,
-                    maximum_iterations=args['max_len'] + 1,
+                    maximum_iterations=args['max_len'],
                     decoder_init_input=self.embedding,
                     decoder_init_kwargs={
                         'start_tokens': tf.tile(tf.constant([args['SOS_ID']], dtype=tf.int32), [tf.shape(context_with_latent)[1]]),
@@ -86,7 +84,6 @@ class Decoder(BaseModel):
                     })
                 # print("**********************************\n******************************\n********************************\n", "\n**********************************\n******************************\n********************************\n")
                 infer_predicted_ids = infer_output.predicted_ids[:, :, 0]  # select the first sentence
-                # infer_predicted_ids = infer_output.sample_id
 
                 # The return is a list consisting of only one element whose diamention is (batch_size, max_len)
                 return infer_predicted_ids

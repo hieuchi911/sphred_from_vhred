@@ -305,7 +305,7 @@ class VHRED(BaseModel):
         return train_logits, train_sample_id
 
     def infer_decoder_session(self, sess, enc_inp):
-        infer_decoder_ids = sess.run([self.infer_decoder_ids],
+        infer_decoder_ids = sess.run(self.infer_decoder_ids,
                                      feed_dict={self.encoder_inputs: enc_inp})
         return infer_decoder_ids
 
