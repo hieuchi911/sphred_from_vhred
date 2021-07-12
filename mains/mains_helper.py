@@ -1,12 +1,12 @@
 import numpy as np
+from data import ids_to_words
+import warnings
+# warnings.filterwarnings('error')
 
 def embedding_eval(prediction_ids, target_ids, embedding):  # prediction_ids, weights, and target_ids: (batch_size, max_lentgh)
     pred = np.take(embedding, prediction_ids, axis=0) # (batch_size, max_lentgh, 100)
     targ = np.take(embedding, target_ids, axis=0)     # (batch_size, max_lentgh, 100)
 
-    ones = np.ones_like(target_ids)
-    zeros = np.zeros_like(target_ids)
-    weights = np.where(target_ids > 0, ones, zeros)
     dim = np.shape(pred)[2]
     # Average:
     scores = []
@@ -16,26 +16,30 @@ def embedding_eval(prediction_ids, target_ids, embedding):  # prediction_ids, we
         for j in range(len(prediction_ids[i])):   # for j'th token in the i'th batch of #max_len tokens
             if prediction_ids[i][j] not in [0, 1, 2, 3]:
                 X += pred[i][j]
-
+        X = np.array(X)/np.linalg.norm(X)
+        
+        for j in range(len(prediction_ids[i])):   # for j'th token in the i'th batch of #max_len tokens
             if target_ids[i][j] not in [0, 1, 2, 3]:
                 Y += targ[i][j]
-        
-        X = np.array(X)/np.linalg.norm(X)
-        Y = np.array(Y)/np.linalg.norm(Y)
-        o = np.dot(X, Y.T)/np.linalg.norm(X)/np.linalg.norm(Y)
-        # print(o, "\n\n")
+                
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            try:
+                Y = np.array(Y)/np.linalg.norm(Y)
+                o = np.dot(X, Y.T)/np.linalg.norm(X)/np.linalg.norm(Y)
+            except Warning:
+                print("Empty response")
 
         scores.append(o)
     scores = np.asarray(scores)
     average = np.mean(scores)
-    
+
     # Greedy:
     g1 = asymetric_greedy(prediction_ids, target_ids, dim, pred, targ)
     g1 = np.mean(g1)
     g2 = asymetric_greedy(target_ids, prediction_ids, dim, targ, pred)
     g2 = np.mean(g2)
     greedy = (g1 + g2)/2.0
-    # greedy = np.mean(g1_g2)
 
 
     # Extrema:
@@ -51,15 +55,19 @@ def embedding_eval(prediction_ids, target_ids, embedding):  # prediction_ids, we
         xmax = np.max(X, 0)  # get positive max
         xmin = np.min(X,0)  # get abs of min
         xtrema = []
-        for i in range(len(xmax)):
-            if np.abs(xmin[i]) > xmax[i]:
-                xtrema.append(xmin[i])
+        for a in range(len(xmax)):
+            if np.abs(xmin[a]) > xmax[a]:
+                xtrema.append(xmin[a])
             else:
-                xtrema.append(xmax[i])
+                xtrema.append(xmax[a])
         X = np.array(xtrema)   # get extrema
+        
+        try:
+            ymax = np.max(Y, 0)
+            ymin = np.min(Y,0)
+        except:
+            print("Empty response")
 
-        ymax = np.max(Y, 0)
-        ymin = np.min(Y,0)
         ytrema = []
         for i in range(len(ymax)):
             if np.abs(ymin[i]) > ymax[i]:
@@ -107,8 +115,6 @@ def asymetric_greedy(arr1, arr2, dim, a1_emb, a2_emb):
         for j in range(len(arr1[i])):   # for j'th token of sequence arr2 in batch j
             if arr2[i][j] not in [0, 1, 2, 3]:                
                 emb = a2_emb[i][j].reshape((1,dim))
-                # print("\n\n", np.linalg.norm(emb))
-                # print(np.linalg.norm(Y, axis=0), "\n\n")
                 tmp  = emb.dot(Y)/np.linalg.norm(emb)/np.linalg.norm(Y, axis=0)
                 o += np.max(tmp)       # take out the max result
                 x_count += 1
@@ -140,7 +146,7 @@ if __name__ == "__main__":
 
     em = np.array([[0.1, 0.2, 0.14], [-0.005, -0.3, 0.19], [0.2, -0.2, 0.2],
         [0.03, 0.6, -0.6], [0.01, -0.22, 0.5], [0.3, 0.2, -0.95], [0.2, 0.3, 0.05]])
-    
+
     p = np.random.randint(6, size=(60000, 6))
     # print(p)
     # print(pm)

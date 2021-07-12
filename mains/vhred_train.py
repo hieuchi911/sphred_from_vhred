@@ -14,7 +14,7 @@ import time
 import pandas as pd
 from sklearn.decomposition import PCA
 import seaborn as sns
-
+import json
 
 class VHREDTrainer(object):
 
@@ -98,7 +98,6 @@ class VHREDTrainer(object):
         
         all_infer_ids = np.empty((0, args["max_len"]))
         all_target_ids = np.empty((0, args["max_len"]))
-        count = 0
 
         for enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general in dataLoader.test_generator():
             infer_decoder_ids_general = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels_general)
@@ -128,22 +127,22 @@ class VHREDTrainer(object):
                 post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
                 X_prior = np.concatenate((X_prior, prior_z[0]))
                 X_post = np.concatenate((X_post, post_z[0]))
-                print(np.shape(infer_decoder_ids))
-                print(infer_decoder_ids, "\n\n")
-                print(np.shape(dec_tar))
-                print(dec_tar[0:2], "\n\n")
-                all_target_ids = np.concatenate((all_target_ids, dec_tar))
-                all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
-                count += 1
-                if count == 2:
-                    break
+                try:
+                    infer_decoder_ids = np.array([np.pad(m, (0, args["max_len"] - len(m))) for m in infer_decoder_ids])
+                    all_target_ids = np.concatenate((all_target_ids, dec_tar))
+                    all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+                except:
+                    print(np.shape(infer_decoder_ids))
+                    print(infer_decoder_ids, "\n\n")
+                    print(np.shape(dec_tar))
+                    print(dec_tar[0:2], "\n\n")
             else:
                 break
         if inference:
-            # print(all_infer_ids)
-            # print(all_target_ids)
+            prediction_ids = np.array(all_infer_ids, dtype=int)
+            target_ids = np.array(all_target_ids, dtype=int)
 
-            average, greedy, extreme = embedding_eval(np.array(all_infer_ids, dtype=int), np.array(all_target_ids, dtype=int), dataLoader.embedding_matrix)
+            average, greedy, extreme = embedding_eval(prediction_ids, target_ids, dataLoader.embedding_matrix)
             print('Average {} | Greedy {} | Extreme {}\n\n'.format(average, greedy, extreme))
             
             X = np.concatenate((X_prior, X_post))
