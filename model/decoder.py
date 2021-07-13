@@ -216,7 +216,7 @@ class Decoder(BaseModel):
                 infer_output, _, _ = tfa.seq2seq.dynamic_decode(
                     decoder=infer_decoder,
                     swap_memory=True,
-                    maximum_iterations=args['max_len'] + 1,
+                    maximum_iterations=args['max_len'],
                     decoder_init_input=self.embedding,
                     decoder_init_kwargs={
                         'start_tokens': tf.tile(tf.constant([args['SOS_ID']], dtype=tf.int32), [tf.shape(context_with_latent)[1]]),

@@ -2,6 +2,7 @@ from configs import args
 from model import Encoder, VHRED
 from data import VHREDDataLoader, ids_to_words
 import matplotlib.pyplot as plt
+from .mains_helper import embedding_eval
 
 from tqdm import tqdm
 import tensorflow as tf
@@ -93,14 +94,20 @@ class VHREDTrainer(object):
             plt.plot(validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
+
+        all_infer_ids = np.empty((0, args["max_len"]))
+        all_target_ids = np.empty((0, args["max_len"]))
+
         for enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general in dataLoader.test_generator():
             infer_decoder_ids_general = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels_general)
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels)
 
             sample_previous_utterance_id = enc_inp[:10]
-            sample_infer_response_id_general = infer_decoder_ids_general[-1][:10]
-            sample_infer_response_id = infer_decoder_ids[-1][:10]
+            sample_infer_response_id_general = infer_decoder_ids_general[:10]
+            sample_infer_response_id = infer_decoder_ids[:10]
             sample_true_response_id = dec_tar[:10]
+            X_prior = np.empty((0, args['latent_size']), float)
+            X_post = np.empty((0, args['latent_size']), float)
             for i in range(len(sample_infer_response_id)):
                 print('-----------------------------------')
                 print('previous utterances:')
@@ -112,8 +119,45 @@ class VHREDTrainer(object):
                 print('infer detailed response:')
                 print(ids_to_words(sample_infer_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
                 print('-----------------------------------')
-            if not inference:
-                break  
+            if inference:
+                prior_z = model.prior_z_session(sess, enc_inp, x_labels)
+                post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
+                X_prior = np.concatenate((X_prior, prior_z[0]))
+                X_post = np.concatenate((X_post, post_z[0]))
+                
+                all_target_ids = np.concatenate((all_target_ids, dec_tar))
+                all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+            else:
+                break
+        
+        if inference:
+
+            average, greedy, extreme = embedding_eval(np.array(all_infer_ids, dtype=int), np.array(all_target_ids, dtype=int), dataLoader.embedding_matrix)
+            print('Average {} | Greedy {} | Extreme {}\n\n'.format(average, greedy, extreme))
+
+            X = np.concatenate((X_prior, X_post))
+            feat_cols = ['latent'+str(i) for i in range(X.shape[1])]
+            df = pd.DataFrame(X, columns=feat_cols)
+            label = np.concatenate((np.full([X_prior.shape[0]], 'prior'), np.full([X_post.shape[0]], 'post')))
+            df['label'] = label
+            np.random.seed(42)
+            rndperm = np.random.permutation(df.shape[0])
+            print('Size of the dataframe: {}'.format(df.shape)) # Expect: test_size, 64
+            pca = PCA(n_components=3)
+            pca_result = pca.fit_transform(df[feat_cols].values)
+            df['pca-one'] = pca_result[:,0]
+            df['pca-two'] = pca_result[:,1] 
+            df['pca-three'] = pca_result[:,2]
+            print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
+            sns.scatterplot(
+              x="pca-one", y="pca-two",
+              hue="label",
+              palette=sns.color_palette("hls", 2),
+              data=df.loc[rndperm,:],
+              legend="full",
+              alpha=0.3
+            )
+            plt.show()
 
     def train_model(self, model, dataLoader, sess, is_fresh_model=True):
         if not is_fresh_model:

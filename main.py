@@ -2,7 +2,7 @@ from mains import VHREDTrainer, VHREDTester
 import tensorflow as tf
 
 if __name__ == '__main__':
-    train = False
+    train = True
     if train:
         trainer = VHREDTrainer()
         trainer.main()
