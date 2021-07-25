@@ -11,7 +11,7 @@ from tensorflow_addons.seq2seq.sampler import categorical_sample
 class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
     def sample(self, time, outputs, state):
         logits = []
-        top_p = 0.05
+        top_p = 0.1
         if top_p > 0.0:
             # 1 - sort the tensor elements and their indices
             sorted_tensor = tf.sort(outputs, axis=-1, direction='DESCENDING')
@@ -21,7 +21,7 @@ class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
             proba_tensor = tf.nn.softmax(sorted_tensor, axis=-1)
             accumulated_proba = tf.cumsum(proba_tensor, axis=-1)  # elements in this tensor increases
 
-            true_ = tf.tile([[True for i in range(20)]], [tf.shape(accumulated_proba)[0], 1])
+            true_ = tf.tile([[True for i in range(5)]], [tf.shape(accumulated_proba)[0], 1])
 
             # A list of coordinates to update. [[0,a], [0, b], ..., [3, h]...]:
             keep_indices = m = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
@@ -57,7 +57,7 @@ class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
 class NucleusSampler(tfa.seq2seq.sampler.SampleEmbeddingSampler):
     def sample(self, time, outputs, state):
         logits = []
-        top_p = 0.05
+        top_p = 0.1
         if top_p > 0.0:
             # 1 - sort the tensor elements and their indices
             sorted_tensor = tf.sort(outputs, axis=-1, direction='DESCENDING')
@@ -67,7 +67,7 @@ class NucleusSampler(tfa.seq2seq.sampler.SampleEmbeddingSampler):
             proba_tensor = tf.nn.softmax(sorted_tensor, axis=-1)
             accumulated_proba = tf.cumsum(proba_tensor, axis=-1)  # elements in this tensor increases
             
-            true_ = tf.tile([[True for i in range(20)]], [tf.shape(accumulated_proba)[0], 1])
+            true_ = tf.tile([[True for i in range(5)]], [tf.shape(accumulated_proba)[0], 1])
 
             # A list of coordinates to update. [[0,a], [0, b], ..., [3, h]...]:
             keep_indices = m = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
