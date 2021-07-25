@@ -1,6 +1,7 @@
 **/data/
 !**/data/data_process.py
 !**/data/vhred_pipeline.py
+!**/data/__init__.py
 **/model/ckpt/
 **/base/__pycache__/
 **/configs/__pycache__/
