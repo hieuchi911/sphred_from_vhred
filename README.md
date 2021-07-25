@@ -3,7 +3,7 @@ A tensorflow implementation of SPHRED from paper A Variational Framework for Dia
 
 This project is originally forked from https://github.com/jshmSimon/VHRED.git, then modified to turn it into SPHRED
 
-Send email to hieuhocnlp@gmail.com to get dataset and word2vec trained files
+Send email to hieuhocnlp@gmail.com to get dataset and word2vec trained files and pretrained models sphred-n-tune-2
 
 ## Library specifications:
 - tensorflow-addons version :   0.11.2
