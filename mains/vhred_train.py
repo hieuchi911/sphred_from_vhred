@@ -1,8 +1,8 @@
 from configs import args
 from model import Encoder, VHRED
 from data import VHREDDataLoader, ids_to_words
-import matplotlib.pyplot as plt
 from .mains_helper import embedding_eval
+import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 import tensorflow as tf
@@ -14,15 +14,15 @@ import time
 import pandas as pd
 from sklearn.decomposition import PCA
 import seaborn as sns
-
+import json
 
 class VHREDTrainer(object):
 
-    def main(self):
+    def main(self, is_nucleus=True):
         tf.compat.v1.disable_eager_execution()
         sess = tf.compat.v1.Session()
         VHRED_dl = VHREDDataLoader(sess)
-        VHRED_model = VHRED(dataLoader=VHRED_dl)
+        VHRED_model = VHRED(dataLoader=VHRED_dl, is_nucleus=is_nucleus)
         init_op = tf.compat.v1.global_variables_initializer()
         self.saver = tf.compat.v1.train.Saver()
 
@@ -30,9 +30,14 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        # UNCOMMENT THIS TO TRAIN NEW MODEL
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        
+        # UNCOMMENT THIS TO CONTINUE TRAINING TRAINED MODEL
         # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
-        self.sample_test(VHRED_model, VHRED_dl, sess, True)
+        
+        # UNCOMMENT THIS TO TEST TRAINED MODEL
+        # self.sample_test(VHRED_model, VHRED_dl, sess, True)
 
         sess.close()
     
@@ -71,6 +76,7 @@ class VHREDTrainer(object):
         # plt.savefig("pyplot_multiple_y-axis.pdf")
         # For raster graphics use the dpi argument. E.g. '[...].png", dpi=200)'
 
+
     def sample_test(self, model, dataLoader, sess, inference=True):
         if inference:
             model.load(self.saver, sess, args['vhred_ckpt_dir'])
@@ -94,54 +100,93 @@ class VHREDTrainer(object):
             plt.plot(validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper left')
             plt.show()
-
+        
         all_infer_ids = np.empty((0, args["max_len"]))
         all_target_ids = np.empty((0, args["max_len"]))
+        
+        X_prior = np.empty((0, args['latent_size']), float)
+        X_post = np.empty((0, args['latent_size']), float)
+
+        all_general_response = []
+        all_detailed_response = []
 
         for enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general in dataLoader.test_generator():
             infer_decoder_ids_general = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels_general)
             infer_decoder_ids = model.infer_decoder_session(sess, enc_inp, x_labels, y_labels)
+            
+            if not inference:
+                sample_previous_utterance_id = enc_inp[:10]
+                sample_infer_response_id_general = infer_decoder_ids_general[:10]
+                sample_infer_response_id = infer_decoder_ids[:10]
+                sample_true_response_id = dec_tar[:10]
 
-            sample_previous_utterance_id = enc_inp[:10]
-            sample_infer_response_id_general = infer_decoder_ids_general[:10]
-            sample_infer_response_id = infer_decoder_ids[:10]
-            sample_true_response_id = dec_tar[:10]
-            X_prior = np.empty((0, args['latent_size']), float)
-            X_post = np.empty((0, args['latent_size']), float)
-            for i in range(len(sample_infer_response_id)):
-                print('-----------------------------------')
-                print('previous utterances:')
-                print(ids_to_words(sample_previous_utterance_id[i], dataLoader.id_to_word, is_pre_utterance=True))
-                print('true response:')
-                print(ids_to_words(sample_true_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
-                print('infer general response:')
-                print(ids_to_words(sample_infer_response_id_general[i], dataLoader.id_to_word, is_pre_utterance=False))
-                print('infer detailed response:')
-                print(ids_to_words(sample_infer_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
-                print('-----------------------------------')
+                for i in range(len(sample_infer_response_id)):
+                    print('-----------------------------------')
+                    print('previous utterances:')
+                    print(ids_to_words(sample_previous_utterance_id[i], dataLoader.id_to_word, is_pre_utterance=True))
+                    print('true response:')
+                    print(ids_to_words(sample_true_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
+                    print('infer general response:')
+                    print(ids_to_words(sample_infer_response_id_general[i], dataLoader.id_to_word, is_pre_utterance=False))
+                    print('infer detailed response:')
+                    print(ids_to_words(sample_infer_response_id[i], dataLoader.id_to_word, is_pre_utterance=False))
+                    print('-----------------------------------')
+            # else:
+            #     for i in range(len(infer_decoder_ids_general)):
+            #         # print('infer general response:')
+            #         general = ids_to_words(infer_decoder_ids_general[i], dataLoader.id_to_word, is_pre_utterance=False)
+            #         # print(general)
+            #         all_general_response.append(general)
+            #         # print('infer detailed response:')
+            #         detail = ids_to_words(infer_decoder_ids[i], dataLoader.id_to_word, is_pre_utterance=False)
+            #         # print(detail)
+            #         all_detailed_response.append(detail)
+            #         # print('-----------------------------------')
+
+
             if inference:
                 prior_z = model.prior_z_session(sess, enc_inp, x_labels)
                 post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
-                X_prior = np.concatenate((X_prior, prior_z[0]))
-                X_post = np.concatenate((X_post, post_z[0]))
-                
-                all_target_ids = np.concatenate((all_target_ids, dec_tar))
-                all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+                X_prior = np.concatenate((X_prior, np.mean(prior_z, axis=0)))
+                X_post = np.concatenate((X_post, np.mean(post_z, axis=0)))
+                try:
+                    infer_decoder_ids = np.array([np.pad(m, (0, args["max_len"] - len(m))) for m in infer_decoder_ids])
+                    all_target_ids = np.concatenate((all_target_ids, dec_tar))
+                    all_infer_ids = np.concatenate((all_infer_ids, infer_decoder_ids))
+                except:
+                    print(np.shape(infer_decoder_ids))
+                    print(infer_decoder_ids, "\n\n")
+                    print(np.shape(dec_tar))
+                    print(dec_tar[0:2], "\n\n")
             else:
                 break
-        
         if inference:
+            prediction_ids = np.array(all_infer_ids, dtype=int)
+            target_ids = np.array(all_target_ids, dtype=int)
 
-            average, greedy, extreme = embedding_eval(np.array(all_infer_ids, dtype=int), np.array(all_target_ids, dtype=int), dataLoader.embedding_matrix)
+            average, greedy, extreme = embedding_eval(prediction_ids, target_ids, dataLoader.embedding_matrix)
             print('Average {} | Greedy {} | Extreme {}\n\n'.format(average, greedy, extreme))
 
+            # the_list = ["i don't know", "i have no idea", "i dont know", "I have no clue", "i'm not sure", "i am not sure"]
+            # gen_count = 0
+            # det_count = 0
+            # for gen in range(len(all_general_response)):
+            #     if any([check in all_general_response[gen] for check in the_list]):
+            #         gen_count += 1
+            #     if not any([check in all_detailed_response[gen] for check in the_list]):
+            #         det_count += 1
+            # print("Out of", len(all_general_response), " general responses,", gen_count, "responses are general\nSo the proportion is: ", str(gen_count/len(all_general_response)))
+            # print("Out of", len(all_general_response), " detailed responses,", det_count, "responses are detailed\nSo the proportion is: ", str(det_count/len(all_general_response)))
+            
             X = np.concatenate((X_prior, X_post))
             feat_cols = ['latent'+str(i) for i in range(X.shape[1])]
             df = pd.DataFrame(X, columns=feat_cols)
             label = np.concatenate((np.full([X_prior.shape[0]], 'prior'), np.full([X_post.shape[0]], 'post')))
             df['label'] = label
+
             np.random.seed(42)
             rndperm = np.random.permutation(df.shape[0])
+
             print('Size of the dataframe: {}'.format(df.shape)) # Expect: test_size, 64
             pca = PCA(n_components=3)
             pca_result = pca.fit_transform(df[feat_cols].values)
@@ -149,6 +194,7 @@ class VHREDTrainer(object):
             df['pca-two'] = pca_result[:,1] 
             df['pca-three'] = pca_result[:,2]
             print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
+
             sns.scatterplot(
               x="pca-one", y="pca-two",
               hue="label",
@@ -177,11 +223,12 @@ class VHREDTrainer(object):
         validation_epoch_loss = sess.run(model.validation_epoch_loss)
         model_epoch = sess.run(model.epoch)
         for epoch in range(args['n_epochs']):
-            if last_improvement > 7:
+            if last_improvement > 5:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
               break
             print()
+            print('\n\nlast_improvement is: ', last_improvement)
             print("---- epoch: {}/{} | lr: {} ----".format(model_epoch, args['n_epochs'], sess.run(model.lr)))
             tic = datetime.datetime.now()
 
@@ -218,7 +265,7 @@ class VHREDTrainer(object):
                 loss_list = np.append(loss_list, current_loss)
                 nll_loss_list = np.append(nll_loss_list, current_nll_loss)
                 kl_loss_list = np.append(kl_loss_list, current_kl_loss)
-                kl_weight_list = np.append(kl_weight_list, current_kl_weight)
+                kl_weight_list = np.append(kl_weight_list, train_out['kl_weights'])
                 
                 if count % args['display_step'] == 0:
                     current_loss = loss / count
@@ -234,10 +281,8 @@ class VHREDTrainer(object):
                                                                                                        current_perplexity))
                     prior_z = model.prior_z_session(sess, enc_inp, x_labels)
                     post_z = model.posterior_z_session(sess, enc_inp, dec_tar, x_labels)
-                    X_prior = np.concatenate((X_prior, prior_z[0]))
-                    X_post = np.concatenate((X_post, post_z[0]))
-            # print("\n\n\n*******************************trainable variables: ", len(sess.run(model.tvars)), "\n************************************\n\n\n")
-            # print("latent plus context output: ", sess.run(model.context_with_latent_infer))
+                    X_prior = np.concatenate((X_prior, np.mean(prior_z, axis=0)))
+                    X_post = np.concatenate((X_post, np.mean(post_z, axis=0)))
             training_epoch_loss = np.append(training_epoch_loss, np.mean(loss_list))
 
             loss = loss / count
@@ -266,7 +311,8 @@ class VHREDTrainer(object):
             df['pca-two'] = pca_result[:,1] 
             df['pca-three'] = pca_result[:,2]
             print('Explained variation per principal component: {}'.format(pca.explained_variance_ratio_))
-
+            
+            print("\nVisualize latent space: prior and posterior space")
             sns.scatterplot(
               x="pca-one", y="pca-two",
               hue="label",
@@ -277,18 +323,18 @@ class VHREDTrainer(object):
             )
             plt.show()
 
-            print("Loss plot per iteration is: ")
+            print("\nLoss plot per iteration is: ")
             plt.plot(loss_list)
             plt.legend(['loss'], loc='upper right')
             plt.show()
 
-            print("Negative log likelihood (nll) loss vs KL loss plot per iteration is: ")
+            print("\nNegative log likelihood (nll) loss vs KL loss plot per iteration is: ")
             plt.plot(nll_loss_list)
             plt.plot(kl_loss_list)
             plt.legend(['nll loss', 'kl loss'], loc='upper right')
             plt.show()
 
-            print("KL loss plot vs KL loss weight per iteration is: ")
+            print("\nKL loss plot vs KL loss weight per iteration is: ")
             plt.plot(kl_loss_list)
             plt.plot(kl_weight_list)
             plt.legend(['kl loss', 'kl_weight'], loc='upper right')
@@ -304,7 +350,6 @@ class VHREDTrainer(object):
             test_nll_loss = 0.0
             test_kl_loss = 0.0
             test_count = 0
-            # test_count = 1
             for (enc_inp, dec_inp, dec_tar, x_labels, y_labels, y_labels_general) in tqdm(dataLoader.test_generator(), desc="testing"):
                 test_out = model.test_session(sess, enc_inp, dec_inp, dec_tar, x_labels, y_labels)
                 test_loss += test_out['loss_test']
@@ -312,8 +357,6 @@ class VHREDTrainer(object):
                 test_kl_loss += test_out['kl_loss']
                 test_count += 1
                 test_loss_list = np.append(test_loss_list, test_out['loss_test'])
-                if stop and epoch < 2:
-                    break
             test_loss /= test_count
             test_nll_loss /= test_count
             test_kl_loss /= test_count
@@ -325,7 +368,7 @@ class VHREDTrainer(object):
                                                                                           test_kl_loss,
                                                                                           test_perplexity))
             validation_epoch_loss = np.append(validation_epoch_loss, np.mean(test_loss_list))
-            print("Training loss vs. Testing loss per epoch is: ")
+            print("\nTraining loss vs. Testing loss per epoch is: ")
             plt.plot(training_epoch_loss)
             plt.plot( validation_epoch_loss)
             plt.legend(['training loss', 'validation loss'], loc='upper right')
@@ -335,7 +378,8 @@ class VHREDTrainer(object):
 
             print('# sample test')
             self.sample_test(model, dataLoader, sess, inference=False)
-            
+
+            # Update model params using tensorflow operations
             sess.run(model.update_epoch_op, feed_dict={model.new_epoch: model_epoch})
             sess.run(model.update_best_loss_op, feed_dict={model.new_best_loss: best_loss})
             sess.run(model.update_improve_op, feed_dict={model.new_improve: last_improvement})
@@ -364,11 +408,3 @@ class VHREDTrainer(object):
                 model.save(self.saver, sess, args['vhred_ckpt_dir'])
             print(" # Epoch finished in {}".format(toc - tic))
             model_epoch += 1
-        # print("Loss plot per iteration is: ")
-        # plt.plot(loss_list)
-        # plt.show()
-        # print("Training loss vs. Testing loss per epoch is: ")
-        # plt.plot(training_epoch_loss)
-        # plt.plot(validation_epoch_loss)
-        # plt.legend(['training loss', 'validation loss'], loc='upper left')
-        # plt.show()

@@ -10,26 +10,10 @@ def create_multi_rnn_cell(rnn_type, hidden_dim, keep_prob, num_layer):
 			cell = tf.keras.layers.GRUCell(hidden_dim, dropout=keep_prob)
 		else:
 			raise ValueError(" # Unsupported rnn_type: %s." % rnn_type)
-		# Apply dropout mechanism to the inputs and outputs by multiplying with the corresponding probabilities
-		# cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=1.0, output_keep_prob=keep_prob)
 		return cell
 	# accepted and returned states are n-tuples where n=len(cells)
 	cell = tf.keras.layers.StackedRNNCells([single_rnn_cell() for _ in range(num_layer)])
-	# cell = tf.contrib.rnn.MultiRNNCell([single_rnn_cell() for _ in range(num_layer)], state_is_tuple=False)
 	return cell
-
-def encoder(embedded_inputs, lengths, hparams, keep_prob):
-	rnn_type = hparams.rnn_type
-	hidden_dim = hparams.hidden_dim
-	num_layer = hparams.num_layer
-
-	encoder_cell = create_multi_rnn_cell(rnn_type, hidden_dim, keep_prob, num_layer)
-	outputs, states = tf.compat.v1.nn.dynamic_rnn(
-		cell=encoder_cell, inputs=embedded_inputs, sequence_length=lengths, dtype=tf.float32)
-
-	return outputs, states
-	# outputs: [batch_size, enc_max_len, hidden_dim]
-	# states: ([batch_size, hidden_dim]) * num_layer
 
 def draw_z_prior(batch_size):
 	return tf.random.normal([batch_size, args['latent_size']])
