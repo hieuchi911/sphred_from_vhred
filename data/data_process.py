@@ -37,11 +37,12 @@ def read_data(filename=None, utterances=None, flag=None):
         file = os.path.join(curPath, filename)
         with open(file, "r", encoding='utf-8') as f:
             # UNCOMMENT THIS TO MAKE TOY DATASET
-            count = 0
+            # count = 0
             for line in f:
                 # UNCOMMENT THIS TO MAKE TOY DATASET
-                if count > 10000:   # Limit must be greater than 4*batch_size
-                    break
+                # This upper limit (call it U) must be greater than 4*batch_size and round_down(U*(1-test_ratio)/batch_size) >= display_step, modify U or display_step
+                # if count > 500:
+                #     break
                 line = line.replace("\n", "")
                 sents = line.split(" __eot__ ")
                 conv = []
@@ -65,7 +66,7 @@ def read_data(filename=None, utterances=None, flag=None):
                 ret_label.append(labels)
                 
                 # UNCOMMENT THIS TO MAKE TOY DATASET
-                count += 1
+                # count += 1
 
         return ret, ret_label
     else:        # This is for testing
