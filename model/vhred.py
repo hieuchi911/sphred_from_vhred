@@ -181,12 +181,12 @@ class VHRED(BaseModel):
                                                                    0.0, 0.01),
                                                                bias_initializer=tf.compat.v1.zeros_initializer,
                                                                name='posterior_dense_1')
-            self.posterior_dense_2 = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                               activation=tf.nn.tanh,
-                                                               kernel_initializer=tf.compat.v1.random_normal_initializer(
-                                                                   0.0, 0.01),
-                                                               bias_initializer=tf.compat.v1.zeros_initializer,
-                                                               name='posterior_dense_2')
+            # self.posterior_dense_2 = tf.compat.v1.layers.Dense(units=args['latent_size'],
+            #                                                    activation=tf.nn.tanh,
+            #                                                    kernel_initializer=tf.compat.v1.random_normal_initializer(
+            #                                                        0.0, 0.01),
+            #                                                    bias_initializer=tf.compat.v1.zeros_initializer,
+            #                                                    name='posterior_dense_2')
             self.posterior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
                                                             # kernel_initializer=tf.compat.v1.random_normal_initializer(
                                                             #     0.0, 0.01),
@@ -202,9 +202,13 @@ class VHRED(BaseModel):
             for i in range(args['num_layer']):
                 posterior_dense_1_out = self.posterior_dense_1(
                     self.context_with_current_step[i])  # (batch_size, latent_dim)
-                posterior_dense_2_out = self.posterior_dense_2(posterior_dense_1_out)
-                self.posterior_mean_value = self.posterior_mean(posterior_dense_2_out)
-                self.posterior_std_value = tf.nn.softplus(self.posterior_std(posterior_dense_2_out))
+                # posterior_dense_2_out = self.posterior_dense_2(posterior_dense_1_out)
+                # self.posterior_mean_value = self.posterior_mean(posterior_dense_2_out)
+                # self.posterior_std_value = tf.nn.softplus(self.posterior_std(posterior_dense_2_out))
+
+                self.posterior_mean_value = self.posterior_mean(posterior_dense_1_out)
+                self.posterior_std_value = tf.nn.softplus(self.posterior_std(posterior_dense_1_out))
+
                 posterior_z = reparamter_trick(self.posterior_mean_value, self.posterior_std_value)
                 self.posterior_z_tuple = self.posterior_z_tuple + (posterior_z,)
 

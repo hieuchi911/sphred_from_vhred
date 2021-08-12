@@ -39,7 +39,7 @@ def reparamter_trick(z_mean, z_std):
 	return z
 
 def kl_weights_fn(global_step):
-	return args['anneal_max'] * tf.sigmoid((150 / args['anneal_bias']) * (
+	return args['anneal_max'] * tf.sigmoid((0.03) * (
 			tf.cast(global_step, dtype=tf.float32) - tf.constant(args['anneal_bias']/ 2)))
 
 def kl_loss_fn(mean_1, std_1, mean_2, std_2):

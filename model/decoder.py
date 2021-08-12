@@ -8,11 +8,8 @@ import tensorflow_addons as tfa
 
 class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
     def sample(self, time, outputs, state):
-        # del state
-        # sample_ids = tf.cast(tf.argmax(outputs, axis=-1), tf.int32)
-        # return sample_ids
         logits = []
-        top_p = 0.05
+        top_p = 0.2
         if top_p > 0.0:
             # 1 - sort the tensor elements and their indices
             sorted_tensor = tf.sort(outputs, axis=-1, direction='DESCENDING')
@@ -22,10 +19,10 @@ class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
             proba_tensor = tf.nn.softmax(sorted_tensor, axis=-1)
             accumulated_proba = tf.cumsum(proba_tensor, axis=-1)  # elements in this tensor increases
 
-            true_ = tf.tile([[True for i in range(20)]], [tf.shape(accumulated_proba)[0], 1])
+            true_ = tf.tile([[True for i in range(10)]], [tf.shape(accumulated_proba)[0], 1])
 
             # A list of coordinates to update. [[0,a], [0, b], ..., [3, h]...]:
-            keep_indices = m = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
+            keep_indices = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
             # Turn [[0,a], [0, b], ..., [3, h]...] to [[0,0], [0, 0], ..., [3, 0]...]:
             keeping_indices = tf.linalg.matmul(keep_indices, tf.constant([[1, 0], [0, 0]], dtype=tf.int64))
 
@@ -44,7 +41,6 @@ class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
 
             # create this shape, the same to the original logits shape
             shape = tf.shape(outputs, out_type=tf.int64)
-
             # this return a scattered matrix of shape shape, elements at indices specified
             # in remove_indices will be filled with the corresponding value in values
             delta = tf.scatter_nd(logit_indices, values, shape)
@@ -58,7 +54,7 @@ class TrainingSamp(tfa.seq2seq.sampler.TrainingSampler):
 class NucleusSampler(tfa.seq2seq.sampler.SampleEmbeddingSampler):
     def sample(self, time, outputs, state):
         logits = []
-        top_p = 0.05
+        top_p = 0.2
         if top_p > 0.0:
             # 1 - sort the tensor elements and their indices
             sorted_tensor = tf.sort(outputs, axis=-1, direction='DESCENDING')
@@ -68,10 +64,10 @@ class NucleusSampler(tfa.seq2seq.sampler.SampleEmbeddingSampler):
             proba_tensor = tf.nn.softmax(sorted_tensor, axis=-1)
             accumulated_proba = tf.cumsum(proba_tensor, axis=-1)  # elements in this tensor increases
             
-            true_ = tf.tile([[True for i in range(20)]], [tf.shape(accumulated_proba)[0], 1])
+            true_ = tf.tile([[True for i in range(10)]], [tf.shape(accumulated_proba)[0], 1])
 
             # A list of coordinates to update. [[0,a], [0, b], ..., [3, h]...]:
-            keep_indices = m = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
+            keep_indices = tf.concat([tf.where(accumulated_proba < top_p), tf.where(true_)], axis=0)
             # Turn [[0,a], [0, b], ..., [3, h]...] to [[0,0], [0, 0], ..., [3, 0]...]:
             keeping_indices = tf.linalg.matmul(keep_indices, tf.constant([[1, 0], [0, 0]], dtype=tf.int64))
 
@@ -192,6 +188,7 @@ class Decoder(BaseModel):
             for i in range(args['num_layer']):
                 init_state = self.state_dense(context_with_latent[i])
                 init_state_tuple = init_state_tuple + (init_state, )
+
             if is_training:  # training
                 embedded_inputs = tf.nn.embedding_lookup(params=self.embedding, ids=decoder_inputs)
                 decoder_lengths = tf.math.count_nonzero(decoder_inputs, -1, dtype=tf.int32)
@@ -209,6 +206,7 @@ class Decoder(BaseModel):
                 logits = train_output.rnn_output
                 sample_id = train_output.sample_id
                 return logits, sample_id
+                
             else:  # inferring
                 samp = NucleusSampler()
                 infer_decoder = tfa.seq2seq.BasicDecoder(cell=self.decoder_cell, sampler=samp,
@@ -227,3 +225,4 @@ class Decoder(BaseModel):
                 infer_predicted_ids = infer_output.sample_id
                 # The return is a list consisting of only one element whose diamention is (batch_size, max_len)
                 return infer_predicted_ids
+

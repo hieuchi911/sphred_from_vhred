@@ -30,9 +30,9 @@ class VHREDTrainer(object):
         # set their values to specified values feed (very much like compiling). Only after this do other operations can be done
         # on these variables (updating, backpropagating etc.)
 
-        # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
+        loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=True)
         # loss_list = self.train_model(VHRED_model, VHRED_dl, sess, is_fresh_model=False)
-        self.sample_test(VHRED_model, VHRED_dl, sess, True)
+        # self.sample_test(VHRED_model, VHRED_dl, sess, True)
 
         sess.close()
     
@@ -177,11 +177,11 @@ class VHREDTrainer(object):
         validation_epoch_loss = sess.run(model.validation_epoch_loss)
         model_epoch = sess.run(model.epoch)
         for epoch in range(args['n_epochs']):
-            if last_improvement > 7:
+            if last_improvement > 5:
               print('\n\nlast_improvement is: ', last_improvement)
               print("No improvements so cease training\n\n")
               break
-            print()
+            print('\n\nlast_improvement is: ', last_improvement)
             print("---- epoch: {}/{} | lr: {} ----".format(model_epoch, args['n_epochs'], sess.run(model.lr)))
             tic = datetime.datetime.now()
 
