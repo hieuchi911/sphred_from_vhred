@@ -8,8 +8,7 @@ import tensorflow as tf
 # encoder_RNN, context_RNN
 class Encoder(BaseModel):
     def __init__(self, vocab_size, word_embeddings=None, is_embedding=True):
-        # if is_embedding=True, this is encoder_RNN
-        # if is_embedding=False, this is context_RNN
+        # if is_embedding=True, this is encoder_RNN, otherwise context_RNN
         if is_embedding:
             name_rnn = 'encoder'
         else:
@@ -25,8 +24,7 @@ class Encoder(BaseModel):
             # while the second dimension is its embedding with length of 128
             if self.is_embedding:
               self.embedding = tf.constant(word_embeddings, dtype=tf.float32)
-            # self.embedding = tf.compat.v1.get_variable('lookup_table', [vocab_size, args['embed_dims']])
-            
+ 
             # The cell is a processing unit, it has a state (hidden state), takes as input embeddings and previous state
             # create_multi_rnn_cell args are: 1 - cell type (LSTM/ GRU), 2 - hidden state length, 3 - keep probability (for dropout
             # mechanism of keeping only a certain amount of input, output data), 4 - number of layers
@@ -60,18 +58,18 @@ class Encoder(BaseModel):
             return outputs, states
 
 
-# if __name__ == '__main__':
-#     sess = tf.compat.v1.Session()
-#     enc_inputs = np.array([[2, 3, 4], [3, 4, 5]])
-#     vocab_size = 18506
-#     encoder = Encoder(vocab_size)
-#     enc_inp_ph = tf.compat.v1.placeholder(tf.int32, [None, None])
-#     outputs, states = encoder(enc_inp_ph)
+if __name__ == '__main__':
+    sess = tf.compat.v1.Session()
+    enc_inputs = np.array([[2, 3, 4], [3, 4, 5]])
+    vocab_size = 18506
+    encoder = Encoder(vocab_size)
+    enc_inp_ph = tf.compat.v1.placeholder(tf.int32, [None, None])
+    outputs, states = encoder(enc_inp_ph)
 
-#     # with tf.Session() as sess:
-#     sess.run(tf.compat.v1.global_variables_initializer())
-#     result = sess.run(states, feed_dict={enc_inp_ph: enc_inputs})
-#     print(type(result))
-#     print(len(result))
-#     print(result[-1].shape)
-#     print(type(result[-1]))
+    # with tf.Session() as sess:
+    sess.run(tf.compat.v1.global_variables_initializer())
+    result = sess.run(states, feed_dict={enc_inp_ph: enc_inputs})
+    print(type(result))
+    print(len(result))
+    print(result[-1].shape)
+    print(type(result[-1]))

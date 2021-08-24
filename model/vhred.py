@@ -12,7 +12,7 @@ import os
 
 
 class VHRED(BaseModel):
-    def __init__(self, dataLoader, build_graph=True, is_train=True):
+    def __init__(self, dataLoader, build_graph=True, is_train=True, is_nucleus=True):
         super().__init__('VHRED')
         self.dataLoader = dataLoader
         # Initialize 3 modules: Encoder RNN, Context RNN and Decoder RNN
@@ -23,7 +23,7 @@ class VHRED(BaseModel):
 
         # SPHRED:
         # self.context_RNN = Encoder(dataLoader.vocab_size, is_embedding=False)
-        self.decoder_RNN = Decoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix)
+        self.decoder_RNN = Decoder(dataLoader.vocab_size, word_embeddings=dataLoader.embedding_matrix, is_nucleus=is_nucleus)
         if build_graph:
             self.build_global_helper()
             self.build_encoder_graph()
@@ -151,15 +151,8 @@ class VHRED(BaseModel):
                                                            bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_dense_2')
             self.prior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                        # kernel_initializer=tf.compat.v1.random_normal_initializer(
-                                                        #     0.0, 0.01),
-                                                        # bias_initializer=tf.compat.v1.zeros_initializer,
                                                         name='prior_mean')
             self.prior_std = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                          #  activation=tf.nn.softplus,
-                                                          #  kernel_initializer=tf.compat.v1.random_normal_initializer(
-                                                          #      0.0, 0.01),
-                                                          #  bias_initializer=tf.compat.v1.zeros_initializer,
                                                            name='prior_std')
             self.prior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
@@ -188,15 +181,8 @@ class VHRED(BaseModel):
             #                                                    bias_initializer=tf.compat.v1.zeros_initializer,
             #                                                    name='posterior_dense_2')
             self.posterior_mean = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                            # kernel_initializer=tf.compat.v1.random_normal_initializer(
-                                                            #     0.0, 0.01),
-                                                            # bias_initializer=tf.compat.v1.zeros_initializer,
                                                             name='posterior_mean')
             self.posterior_std = tf.compat.v1.layers.Dense(units=args['latent_size'],
-                                                              #  activation=tf.nn.softplus,
-                                                              #  kernel_initializer=tf.compat.v1.random_normal_initializer(
-                                                              #      0.0, 0.01),
-                                                              #  bias_initializer=tf.compat.v1.zeros_initializer,
                                                                name='posterior_std')
             self.posterior_z_tuple = ()  # (num_layer, (batch_size, latent_size))
             for i in range(args['num_layer']):
@@ -254,7 +240,6 @@ class VHRED(BaseModel):
 
     def encoder_state_session(self, sess, enc_inp):
         result = sess.run(self.enc_state_list, feed_dict={self.encoder_inputs: enc_inp})
-        # result = sess.run(self.current_utterance_inputs, feed_dict={self.encoder_inputs:enc_inp})
         return result
 
     def encoder_current_step_session(self, sess, dec_tar):
@@ -284,20 +269,21 @@ class VHRED(BaseModel):
                                                  self.decoder_inputs: dec_inp, self.decoder_targets: dec_tar,
                                                  self.y_label: y_labels,
                                                  self.x_label: x_labels})
+        # TO DEBUG DECODER OUTPUTS
         # print("\n\n\n*******************************\tOutput dense logits: ", train_logits[0][0], "\n*******************************\n\n\n")
-        # array_of = {}
-        # array_gt_3 = {}
-        # tracker = 0
-        # for i in train_logits[0][0]:
-        #   if i > 0:
-        #     array_of[tracker] = i
-        #   if i >= train_logits[0][0][3]:
-        #     array_gt_3[tracker] = i
-        #   tracker += 1
+        array_of = {}
+        array_gt_3 = {}
+        tracker = 0
+        for i in train_logits[0][0]:
+          if i > 0:
+            array_of[tracker] = i
+          if i >= train_logits[0][0][3]:
+            array_gt_3[tracker] = i
+          tracker += 1
         # weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
         print("\n\n\n*******************************\n*******************************\n\n\n")
         print("\t\t\t\t\tTRAIN DECODER SESSION: return train_logits and train sample ids\n")
-        print("Train_sample_id: ", train_sample_id, ", \n shape: ", np.shape(train_sample_id))
+        print("Train_sample_id: ", train_sample_id)
         print("Train_sample_id[0]: ", train_sample_id[0])
         print("train_logits[0]: ", train_logits[0][0])
         print("Train logits shape: ", np.shape(train_logits))
@@ -331,41 +317,40 @@ class VHRED(BaseModel):
         return loss
 
     def train_session(self, sess, enc_inp, dec_inp, dec_tar, x_label, y_label):    # dec_tar is of shape (batch_size, max_len)
-        # train_logits = sess.run(self.train_logits, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
-        # num_classes = tf.shape(input=train_logits)[2]
-        # logits_flat = tf.reshape(train_logits, [-1, num_classes]) # turn logits from (batch_size, max_len, vocab) ---> (batch_size*max_len, vocab)
-        # targets_rank = len(np.shape(dec_tar))
-        # proba_flat = tf.nn.softmax(logits_flat, axis=1)
-        # proba_flat_print = sess.run(proba_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
-        # logits_flat_print = sess.run(logits_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
-        # weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
-        # a = '\n||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n'
-        # print('\n\n\n\n\n', a, a, a, "\n\t\tProba maxed: \n", proba_flat_print, "\n\t\tand\n\t\tTargets:\n", dec_tar)
-        # print("Cross entropy is calculated by applying log on the proba", proba_flat_print[0][dec_tar[0][0]], "at index: ", dec_tar[0][0], 'and the first target: ', dec_tar[0])
-        # if targets_rank == 2:
-        #     print("\ntarget rank is TRULY 2!!")
-        #     targets = tf.reshape(dec_tar, [-1]) # targets is then turn from (batch_size, max_len) to (batch_size*max_len)
-        #     crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #         labels=targets, logits=logits_flat
-        #     )
-        #     print("Calculated crossent!! ", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}),"\n\n")
-        # crossent *= tf.reshape(weights, [-1])
-        # print("crossent after multiplied with weights: \n", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}), '\n')
-        # crossent = tf.reduce_sum(input_tensor=crossent)
-        # total_size = tf.reduce_sum(input_tensor=weights)
-        # crossent = tf.math.divide_no_nan(crossent, total_size)
-        # # print('is: ', crossent[0])
-        # print('Cross entropy matrix: ', sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}))
-        # print(a, a, a, '\n\n\n\n\n')
+        # DEBUG TRAIN SESSION
+        """train_logits = sess.run(self.train_logits, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        num_classes = tf.shape(input=train_logits)[2]
+        logits_flat = tf.reshape(train_logits, [-1, num_classes]) # turn logits from (batch_size, max_len, vocab) ---> (batch_size*max_len, vocab)
+        targets_rank = len(np.shape(dec_tar))
+        proba_flat = tf.nn.softmax(logits_flat, axis=1)
+        proba_flat_print = sess.run(proba_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        logits_flat_print = sess.run(logits_flat, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp})
+        weights = sess.run(self.decoder_weights, feed_dict={self.decoder_inputs: dec_inp})
+        a = '\n||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n'
+        print('\n\n\n\n\n', a, a, a, "\n\t\tProba maxed: \n", proba_flat_print, "\n\t\tand\n\t\tTargets:\n", dec_tar)
+        print("Cross entropy is calculated by applying log on the proba", proba_flat_print[0][dec_tar[0][0]], "at index: ", dec_tar[0][0], 'and the first target: ', dec_tar[0])
+        if targets_rank == 2:
+            print("\ntarget rank is TRULY 2!!")
+            targets = tf.reshape(dec_tar, [-1]) # targets is then turn from (batch_size, max_len) to (batch_size*max_len)
+            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=targets, logits=logits_flat
+            )
+            print("Calculated crossent!! ", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}),"\n\n")
+        crossent *= tf.reshape(weights, [-1])
+        print("crossent after multiplied with weights: \n", sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}), '\n')
+        crossent = tf.reduce_sum(input_tensor=crossent)
+        total_size = tf.reduce_sum(input_tensor=weights)
+        crossent = tf.math.divide_no_nan(crossent, total_size)
+        # print('is: ', crossent[0])
+        print('Cross entropy matrix: ', sess.run(crossent, feed_dict={self.encoder_inputs: enc_inp, self.decoder_inputs: dec_inp}))
+        print(a, a, a, '\n\n\n\n\n')"""
         fetches = [self.train_op, self.loss, self.nll_loss, self.kl_loss, self.kl_weights, self.global_step]
         feed_dict = {self.encoder_inputs: enc_inp,
                      self.decoder_inputs: dec_inp,
                      self.decoder_targets: dec_tar,
                      self.x_label: x_label,
                      self.y_label: y_label}
-        # print("\nIN TRAIN SESSION, BEFORE LOSS AND UPDATE TRAINABLE VARS")
         _, loss, nll_loss, kl_loss, kl_weights, global_step = sess.run(fetches, feed_dict)
-        # print("IN TRAIN SESSION, AFTER CALCULATING LOSS AND UPDATE TRAINABLE VARS")
         return {'loss': loss, 'nll_loss': nll_loss, 'kl_loss': kl_loss, 'kl_weights': kl_weights, 'global_step': global_step}
 
     def test_session(self, sess, enc_inp, dec_inp, dec_tar, x_label, y_label):
