@@ -1,9 +1,9 @@
 # SPHRED
-A tensorflow implementation of SPHRED from paper A Variational Framework for Dialogue Generation, Shen et al.2017: https://arxiv.org/abs/1705.00316
+A tensorflow re-implementation of SPHRED from paper A Variational Framework for Dialogue Generation, Shen et al.2017: https://arxiv.org/abs/1705.00316.
+
+Reports, presentation, and demo of this project can be found [here](https://drive.google.com/drive/u/2/folders/1FmZ9qctybFdIb7Zr0BEoQvkDW1SY-rZ3?usp=sharing)
 
 This project is originally forked from https://github.com/jshmSimon/VHRED.git, then modified to turn it into SPHRED
-
-Send email to hieuhocnlp@gmail.com to get dataset and word2vec trained files and pretrained models sphred-n-tune-2
 
 ## Library specifications:
 - tensorflow-addons version :   0.11.2
